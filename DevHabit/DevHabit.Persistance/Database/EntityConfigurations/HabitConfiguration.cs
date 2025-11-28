@@ -1,8 +1,8 @@
-﻿using DevHabit.Api.Entities;
+﻿using DevHabit.Domain.Habits.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace DevHabit.Api.Database.EntityConfigurations;
+namespace DevHabit.Infrastructure.Database.EntityConfigurations;
 
 public sealed class HabitConfiguration : IEntityTypeConfiguration<Habit>
 {

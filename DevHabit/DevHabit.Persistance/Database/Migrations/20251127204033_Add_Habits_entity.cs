@@ -4,10 +4,10 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace DevHabit.Api.Migrations
+namespace DevHabit.Infrastructure.Database.Migrations
 {
     /// <inheritdoc />
-    public partial class Added_Habits : Migration
+    public partial class Add_Habits_entity : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

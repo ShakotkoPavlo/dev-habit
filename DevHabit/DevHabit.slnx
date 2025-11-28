@@ -6,6 +6,9 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="DevHabit.Api/DevHabit.Api.csproj" />
+    <Project Path="DevHabit.Contracts/DevHabit.Contracts.csproj" Id="0c9017e4-b2cb-4e53-bf34-98da8d1beeee" />
+    <Project Path="DevHabit.Domain/DevHabit.Domain.csproj" />
+    <Project Path="DevHabit.Persistance/DevHabit.Infrastructure.csproj" Id="e999c238-91b8-4c98-b6d6-1ab24c79fc43" />
   </Folder>
   <Project Path="docker-compose.dcproj">
     <Build />

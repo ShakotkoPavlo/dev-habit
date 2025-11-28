@@ -1,9 +1,9 @@
-﻿using DevHabit.Api.Database;
+﻿using DevHabit.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 
 namespace DevHabit.Api.Extensions;
 
-public static class DatabaseExtensions
+public static class Extensions
 {
     public static async Task ApplyMigrationsAsync(this WebApplication webApplication)
     {

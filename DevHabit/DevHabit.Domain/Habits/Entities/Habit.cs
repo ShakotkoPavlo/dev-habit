@@ -1,4 +1,6 @@
-﻿namespace DevHabit.Api.Entities;
+﻿using DevHabit.Domain.Habits.Entities.Enums;
+
+namespace DevHabit.Domain.Habits.Entities;
 
 public class Habit
 {
@@ -27,47 +29,4 @@ public class Habit
     public DateTime? UpdatedAtUtc { get; set; }
 
     public DateTime? LastCompletedAtUtc { get; set; }
-}
-
-public enum HabitType
-{
-    None,
-    Binary = 1,
-    Measurable = 2
-}
-
-public sealed class Frequency
-{
-    public FrequencyType Type { get; set; }
-
-    public int TimesPerPeriod { get; set; }
-}
-
-public enum HabitStatus
-{
-    None,
-    Ongoing = 1,
-    Completed = 2,
-}
-
-public enum FrequencyType
-{
-    None,
-    Daily = 1,
-    Weekly = 2,
-    Monthly = 3,
-}
-
-public sealed class Target
-{
-    public int Value { get; set; }
-
-    public string Unit { get; set; }
-}
-
-public sealed class Milestone
-{
-    public int Target { get; set; }
-
-    public int Current { get; set; }
 }
