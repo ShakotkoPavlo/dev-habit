@@ -2,6 +2,7 @@
 using DevHabit.Contracts.Habits;
 using DevHabit.Contracts.Habits.Requests;
 using DevHabit.Infrastructure.Database;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -61,6 +62,52 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
         }
 
         habit.UpdateFromContract(request);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPatch("{id}")]
+    public async Task<ActionResult> PatchHabit(string id, JsonPatchDocument<Habit> patchDocument,
+        CancellationToken cancellationToken = default)
+    {
+        Domain.Habits.Entities.Habit? domainHabit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
+
+        if (domainHabit is null)
+        {
+            return NotFound();
+        }
+
+        Habit habit = domainHabit.ToContract();
+
+        patchDocument.ApplyTo(habit, ModelState);
+
+        if (!TryValidateModel(habit))
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        domainHabit.Name = habit.Name;
+        domainHabit.Description = habit.Description;
+        domainHabit.UpdatedAtUtc = DateTime.UtcNow;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> DeleteHabit(string id, CancellationToken cancellationToken = default)
+    {
+        Domain.Habits.Entities.Habit? domainHabit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
+
+        if (domainHabit is null)
+        {
+            return NotFound();
+        }
+
+        dbContext.Habits.Remove(domainHabit);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
