@@ -16,8 +16,7 @@ builder.Services.AddControllers(options =>
 .AddNewtonsoftJson()
 .AddXmlSerializerFormatters();
 
-builder.Services
-    .AddValidatorsFromAssemblyContaining<Program>(includeInternalTypes: true);
+builder.Services.AddValidatorsFromAssemblyContaining<Program>(includeInternalTypes: true);
 
 builder.Services
     .AddOpenApi()
