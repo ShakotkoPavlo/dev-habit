@@ -22,5 +22,10 @@ public sealed class HabitConfiguration : IEntityTypeConfiguration<Habit>
         });
 
         builder.OwnsOne(h => h.Milestone);
+
+        builder
+            .HasMany(ht => ht.Tags)
+            .WithMany()
+            .UsingEntity<HabitTag>();
     }
 }

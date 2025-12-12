@@ -12,11 +12,11 @@ namespace DevHabit.Api.Controllers;
 [Route("habits")]
 public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
 {
-
     [HttpGet]
-    public async Task<ActionResult<IList<Habit>>> GetHabits()
+    public async Task<ActionResult<IList<HabitWithTags>>> GetHabits()
     {
-        List<Habit> contractHabits = await dbContext.Habits
+        List<HabitWithTags> contractHabits = await dbContext
+            .Habits
             .Select(HabitQueries.ProjectToContract())
             .ToListAsync();
 
@@ -26,7 +26,7 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<Habit>> GetHabit(string id, CancellationToken cancellationToken = default)
     {
-        Habit? habit = await dbContext
+        HabitWithTags? habit = await dbContext
             .Habits
             .Where(h => h.Id == id)
             .Select(HabitQueries.ProjectToContract())
@@ -69,8 +69,7 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [HttpPatch("{id}")]
-    public async Task<ActionResult> PatchHabit(string id, JsonPatchDocument<Habit> patchDocument,
-        CancellationToken cancellationToken = default)
+    public async Task<ActionResult> PatchHabit(string id, JsonPatchDocument<Habit> patchDocument, CancellationToken cancellationToken = default)
     {
         Domain.Habits.Entities.Habit? domainHabit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
 

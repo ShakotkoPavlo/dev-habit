@@ -3,6 +3,7 @@ using System;
 using DevHabit.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DevHabit.Infrastructure.Database.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251208135859_added_tag")]
+    partial class added_tag
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -73,32 +76,6 @@ namespace DevHabit.Infrastructure.Database.Migrations
                         .HasName("pk_habits");
 
                     b.ToTable("habits", "dev_habit");
-                });
-
-            modelBuilder.Entity("DevHabit.Domain.Habits.Entities.HabitTag", b =>
-                {
-                    b.Property<string>("HabitId")
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("habit_id");
-
-                    b.Property<string>("TagId")
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("tag_id");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at_utc");
-
-                    b.HasKey("HabitId", "TagId")
-                        .HasName("pk_habit_tags");
-
-                    b.HasIndex("TagId")
-                        .HasDatabaseName("ix_habit_tags_tag_id");
-
-                    b.HasIndex("HabitId", "TagId")
-                        .HasDatabaseName("ix_habit_tags_habit_id_tag_id");
-
-                    b.ToTable("habit_tags", "dev_habit");
                 });
 
             modelBuilder.Entity("DevHabit.Domain.Habits.Entities.Tag", b =>
@@ -217,28 +194,6 @@ namespace DevHabit.Infrastructure.Database.Migrations
 
                     b.Navigation("Target")
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("DevHabit.Domain.Habits.Entities.HabitTag", b =>
-                {
-                    b.HasOne("DevHabit.Domain.Habits.Entities.Habit", null)
-                        .WithMany("HabitTags")
-                        .HasForeignKey("HabitId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_habit_tags_habits_habit_id");
-
-                    b.HasOne("DevHabit.Domain.Habits.Entities.Tag", null)
-                        .WithMany()
-                        .HasForeignKey("TagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_habit_tags_tags_tag_id");
-                });
-
-            modelBuilder.Entity("DevHabit.Domain.Habits.Entities.Habit", b =>
-                {
-                    b.Navigation("HabitTags");
                 });
 #pragma warning restore 612, 618
         }

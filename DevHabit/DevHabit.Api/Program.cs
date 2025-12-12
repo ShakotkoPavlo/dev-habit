@@ -1,5 +1,6 @@
 using DevHabit.Api.Extensions;
 using DevHabit.Infrastructure.Database.Extensions;
+using FluentValidation;
 using Npgsql;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -14,6 +15,9 @@ builder.Services.AddControllers(options =>
 })
 .AddNewtonsoftJson()
 .AddXmlSerializerFormatters();
+
+builder.Services
+    .AddValidatorsFromAssemblyContaining<Program>(includeInternalTypes: true);
 
 builder.Services
     .AddOpenApi()

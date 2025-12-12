@@ -107,9 +107,9 @@ public static class HabitMappings
 
 public static class HabitQueries
 {
-    public static Expression<Func<DomainHabit, Habit>> ProjectToContract()
+    public static Expression<Func<DomainHabit, HabitWithTags>> ProjectToContract()
     {
-        return h => new Habit
+        return h => new HabitWithTags
         {
             Id = h.Id,
             Name = h.Name,
@@ -137,7 +137,8 @@ public static class HabitQueries
                 : null,
             CreatedAtUtc = h.CreatedAtUtc,
             UpdatedAtUtc = h.UpdatedAtUtc,
-            LastCompletedAtUtc = h.LastCompletedAtUtc
+            LastCompletedAtUtc = h.LastCompletedAtUtc,
+            Tags = h.Tags.Select(t => t.Id).ToArray()
         };
     }
 }
