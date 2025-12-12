@@ -64,7 +64,9 @@ public class TagController(ApplicationDbContext dbContext) : ControllerBase
 
         if (await dbContext.Tags.AnyAsync(t => t.Name == request.Name, cancellationToken))
         {
-            return Conflict($"Tag '{request.Name}' already exist.");
+            return Problem(
+                detail: $"Tag '{request.Name}' already exist.",
+                statusCode: StatusCodes.Status409Conflict);
         }
 
         await dbContext.Tags.AddAsync(newTag, cancellationToken);

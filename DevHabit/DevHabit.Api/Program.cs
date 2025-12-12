@@ -1,4 +1,5 @@
 using DevHabit.Api.Extensions;
+using DevHabit.Contracts.Habits.Requests;
 using DevHabit.Infrastructure.Database.Extensions;
 using FluentValidation;
 using Npgsql;
@@ -9,17 +10,23 @@ using OpenTelemetry.Trace;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers(options =>
-{
-    options.ReturnHttpNotAcceptable = true;
-})
-.AddNewtonsoftJson()
-.AddXmlSerializerFormatters();
+builder.Services
+    .AddControllers(options =>
+    {
+        options.ReturnHttpNotAcceptable = true;
+    })
+    .AddNewtonsoftJson()
+    .AddXmlSerializerFormatters();
 
-builder.Services.AddValidatorsFromAssemblyContaining<Program>(includeInternalTypes: true);
+builder.Services.AddValidatorsFromAssemblyContaining<CreateHabitRequestValidator>();
+
+builder.Services.AddOpenApi();
+
+builder.Services.AddProblemDetails(config =>
+    config.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions.TryAdd("requestId", context.HttpContext.TraceIdentifier));
 
 builder.Services
-    .AddOpenApi()
     .ConfigureDatabase(builder.Configuration)
     .AddOpenTelemetry()
         .ConfigureResource(resource => resource.AddService(builder.Environment.ApplicationName))

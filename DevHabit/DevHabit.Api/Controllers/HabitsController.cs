@@ -43,7 +43,10 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Habit>> CreateHabit(CreateHabitRequest habitRequest, IValidator<CreateHabitRequest> validator, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<Habit>> CreateHabit(
+        CreateHabitRequest habitRequest,
+        IValidator<CreateHabitRequest> validator,
+        CancellationToken cancellationToken = default)
     {
         ValidationResult validationResult = await validator.ValidateAsync(habitRequest, cancellationToken);
 
