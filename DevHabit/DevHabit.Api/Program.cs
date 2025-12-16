@@ -1,4 +1,5 @@
 using DevHabit.Api.Extensions;
+using DevHabit.Api.Middleware;
 using DevHabit.Contracts.Habits.Requests;
 using DevHabit.Infrastructure.Database.Extensions;
 using FluentValidation;
@@ -25,6 +26,9 @@ builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails(config =>
     config.CustomizeProblemDetails = context =>
         context.ProblemDetails.Extensions.TryAdd("requestId", context.HttpContext.TraceIdentifier));
+
+builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 builder.Services
     .ConfigureDatabase(builder.Configuration)
@@ -56,6 +60,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseExceptionHandler();
 
 app.MapControllers();
 

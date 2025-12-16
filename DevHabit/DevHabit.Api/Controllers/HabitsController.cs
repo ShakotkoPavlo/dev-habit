@@ -15,8 +15,10 @@ namespace DevHabit.Api.Controllers;
 public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IList<HabitWithTags>>> GetHabits()
+    public async Task<ActionResult<IList<HabitWithTags>>> GetHabits([FromQuery] SearchHabitsRequest habitsRequest)
     {
+        habitsRequest.Search ??= habitsRequest.Search?.Trim().ToLowerInvariant();
+
         List<HabitWithTags> contractHabits = await dbContext
             .Habits
             .Select(HabitQueries.ProjectToContract())
@@ -48,12 +50,7 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
         IValidator<CreateHabitRequest> validator,
         CancellationToken cancellationToken = default)
     {
-        ValidationResult validationResult = await validator.ValidateAsync(habitRequest, cancellationToken);
-
-        if (!validationResult.IsValid)
-        {
-            return BadRequest(validationResult.ToDictionary());
-        }
+        await validator.ValidateAndThrowAsync(habitRequest, cancellationToken);
 
         Domain.Habits.Entities.Habit habit = habitRequest.ToEntity();
 

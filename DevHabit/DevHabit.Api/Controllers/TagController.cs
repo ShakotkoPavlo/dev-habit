@@ -50,15 +50,7 @@ public class TagController(ApplicationDbContext dbContext) : ControllerBase
         ProblemDetailsFactory problemDetailsFactory,
         CancellationToken cancellationToken = default)
     {
-        ValidationResult? validationResult = await validator.ValidateAsync(request, cancellationToken);
-
-        if (!validationResult.IsValid)
-        {
-            ProblemDetails problemDetails = problemDetailsFactory.CreateProblemDetails(HttpContext, StatusCodes.Status400BadRequest);
-            problemDetails.Extensions.Add("errors", validationResult.ToDictionary());
-
-            return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
-        }
+        await validator.ValidateAndThrowAsync(request, cancellationToken);
 
         Domain.Habits.Entities.Tag newTag = request.ToEntity();
 
