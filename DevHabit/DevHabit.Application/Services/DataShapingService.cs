@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Dynamic;
 using System.Reflection;
+using DevHabit.Contracts.Habits;
 
 namespace DevHabit.Application.Services;
 
@@ -42,7 +43,7 @@ public class DataShapingService
         return (ExpandoObject)shapedObject;
     }
 
-    public List<ExpandoObject> ShapeCollectionData<T>(IEnumerable<T> entities, string? fields)
+    public List<ExpandoObject> ShapeCollectionData<T>(IEnumerable<T> entities, string? fields, Func<T,List<Link>>? linkFactory)
     {
         HashSet<string> fieldsSet = fields?.Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(f => f.Trim())
@@ -73,6 +74,11 @@ public class DataShapingService
                 if (fieldsSet.Count == 0 || fieldsSet.Contains(propertyInfo.Name))
                 {
                     shapedObject[propertyInfo.Name] = propertyInfo.GetValue(entity);
+                }
+
+                if (linkFactory is not null)
+                {
+                    shapedObject["links"] = linkFactory(entity);
                 }
             }
 

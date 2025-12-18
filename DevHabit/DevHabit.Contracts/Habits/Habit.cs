@@ -2,7 +2,7 @@
 
 namespace DevHabit.Contracts.Habits;
 
-public sealed record Habit
+public sealed record Habit : ILinkResponse
 {
     public required string Id { get; init; }
 
@@ -29,4 +29,6 @@ public sealed record Habit
     public DateTime? UpdatedAtUtc { get; init; }
 
     public DateTime? LastCompletedAtUtc { get; init; }
+
+    public List<Link> Links { get; set; }
 }

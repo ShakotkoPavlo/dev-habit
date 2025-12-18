@@ -13,7 +13,7 @@ namespace DevHabit.Api.Controllers;
 
 [ApiController]
 [Route("habits")]
-public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
+public class HabitsController(ApplicationDbContext dbContext, LinkService linkService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetHabits([FromQuery] SearchHabitsRequest habitsRequest, DataShapingService dataShapingService)
@@ -47,13 +47,15 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
 
         var paginationResult = new PaginationResult<ExpandoObject>
         {
-            Items = dataShapingService.ShapeCollectionData(habits, habitsRequest.Fields),
+            Items = dataShapingService.ShapeCollectionData(habits, habitsRequest.Fields, h => CreateLinksForHabit(h.Id, habitsRequest.Fields)),
             TotalCount = totalCount,
             Page = habitsRequest.Page,
-            PageSize = habitsRequest.PageSize
+            PageSize = habitsRequest.PageSize,
         };
 
-        return Ok(paginationResult.Items);
+        paginationResult.Links = CreateLinksForHabit(habitsRequest, paginationResult.HasNextPage, paginationResult.HasPreviousPage);
+
+        return Ok(paginationResult);
     }
 
     [HttpGet("{id}")]
@@ -83,6 +85,8 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
 
         ExpandoObject shapedHabit = dataShapingService.ShapedData(habit, fields);
 
+        shapedHabit.TryAdd("links", CreateLinksForHabit(id, fields));
+
         return Ok(shapedHabit);
     }
 
@@ -98,6 +102,9 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
 
         await dbContext.Habits.AddAsync(habit, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        Habit habitDto = habit.ToContract();
+        habitDto.Links = CreateLinksForHabit(habitDto.Id, null);
 
         return CreatedAtAction(nameof(GetHabit), new { id = habit.Id}, habit);
     }
@@ -162,5 +169,67 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return NoContent();
+    }
+
+    private List<Link> CreateLinksForHabit(
+        SearchHabitsRequest habitsRequest,
+        bool hasNextPage,
+        bool hasPreviousPage)
+    {
+        List<Link> links = 
+        [
+            linkService.GenerateLink(endpoint: nameof(GetHabits), rel: "self", method: HttpMethods.Get, new
+            {
+                page = habitsRequest.Page,
+                pageSize = habitsRequest.PageSize,
+                fields = habitsRequest.Fields,
+                search = habitsRequest.Search,
+                type = habitsRequest.Type,
+                status = habitsRequest.Status,
+            }),
+            linkService.GenerateLink(endpoint: nameof(CreateHabit), rel: "create", method: HttpMethods.Post)
+        ];
+
+        if (hasNextPage)
+        {
+            links.Add(
+                linkService.GenerateLink(endpoint: nameof(GetHabits), rel: "next-page", method: HttpMethods.Get, new
+                {
+                    page = habitsRequest.Page + 1,
+                    pageSize = habitsRequest.PageSize,
+                    fields = habitsRequest.Fields,
+                    search = habitsRequest.Search,
+                    type = habitsRequest.Type,
+                    status = habitsRequest.Status,
+                }));
+        }
+
+        if (hasPreviousPage)
+        {
+            links.Add(
+                linkService.GenerateLink(endpoint: nameof(GetHabits), rel: "previous-page", method: HttpMethods.Get, new
+                {
+                    page = habitsRequest.Page - 1,
+                    pageSize = habitsRequest.PageSize,
+                    fields = habitsRequest.Fields,
+                    search = habitsRequest.Search,
+                    type = habitsRequest.Type,
+                    status = habitsRequest.Status,
+                }));
+        }
+
+        return links;
+    }
+
+    private List<Link> CreateLinksForHabit(string id, string? fields)
+    {
+        return
+        [
+            linkService.GenerateLink(endpoint: nameof(GetHabit), rel: "self", method: HttpMethods.Get, values: new { id, fields }),
+            linkService.GenerateLink(endpoint: nameof(UpdateHabit), rel: "update", method: HttpMethods.Put, values: new { id }),
+            linkService.GenerateLink(endpoint: nameof(PatchHabit), rel: "partial-update", method: HttpMethods.Patch, values: new { id }),
+            linkService.GenerateLink(endpoint: nameof(DeleteHabit), rel: "delete", method: HttpMethods.Delete, values: new { id }),
+            linkService.GenerateLink(endpoint: nameof(HabitTagsController.AddTagToHabit), rel: "upsert-tags", method: HttpMethods.Put, values: new { habitId = id }, "HabitTags"),
+        ];
     }
 }

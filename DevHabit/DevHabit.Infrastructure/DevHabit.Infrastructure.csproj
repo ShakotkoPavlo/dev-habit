@@ -16,4 +16,8 @@
     <ProjectReference Include="..\DevHabit.Domain\DevHabit.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Database\Extensions\" />
+  </ItemGroup>
+
 </Project>

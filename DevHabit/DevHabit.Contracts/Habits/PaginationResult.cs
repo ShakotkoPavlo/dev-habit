@@ -2,7 +2,7 @@
 
 namespace DevHabit.Contracts.Habits;
 
-public sealed record PaginationResult<T> : ICollectionResponse<T>
+public sealed record PaginationResult<T> : ICollectionResponse<T>, ILinkResponse
 {
     public List<T> Items { get; init; }
 
@@ -17,6 +17,8 @@ public sealed record PaginationResult<T> : ICollectionResponse<T>
     public bool HasPreviousPage => Page > 1;
 
     public bool HasNextPage => Page < TotalPages;
+
+    public List<Link> Links { get; set; }
 
     public static async Task<PaginationResult<T>> CreateAsync(IQueryable<T> source, int page, int pageSize, CancellationToken cancellationToken = default)
     {

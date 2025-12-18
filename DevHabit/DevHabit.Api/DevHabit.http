@@ -1,6 +1,5 @@
 @DevHabit_HostAddress = http://localhost:5000
 
-GET {{DevHabit_HostAddress}}/weatherforecast/
-Accept: application/json
+
 
 ###
