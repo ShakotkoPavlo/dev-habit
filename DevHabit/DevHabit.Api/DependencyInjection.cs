@@ -1,4 +1,5 @@
-﻿using DevHabit.Api.Middleware;
+﻿using Asp.Versioning;
+using DevHabit.Api.Middleware;
 using DevHabit.Application.Services;
 using DevHabit.Contracts.Habits.Requests;
 using DevHabit.Infrastructure.Database;
@@ -18,7 +19,7 @@ namespace DevHabit.Api;
 
 public static class DependencyInjection
 {
-    public static WebApplicationBuilder AddControllers(this WebApplicationBuilder applicationBuilder)
+    public static WebApplicationBuilder AddApiServices(this WebApplicationBuilder applicationBuilder)
     {
         applicationBuilder.Services
             .AddControllers(options =>
@@ -34,8 +35,28 @@ public static class DependencyInjection
                 .OfType<NewtonsoftJsonOutputFormatter>()
                 .FirstOrDefault()!;
 
+            jsonOutputFormatter.SupportedMediaTypes.Add(CustomMediaTypesNames.Application.JsonV1);
+            jsonOutputFormatter.SupportedMediaTypes.Add(CustomMediaTypesNames.Application.JsonV2);
             jsonOutputFormatter.SupportedMediaTypes.Add(CustomMediaTypesNames.Application.HateoasJson);
+            jsonOutputFormatter.SupportedMediaTypes.Add(CustomMediaTypesNames.Application.HateoasJsonV1);
+            jsonOutputFormatter.SupportedMediaTypes.Add(CustomMediaTypesNames.Application.HateoasJsonV2);
         });
+
+        applicationBuilder.Services
+            .AddApiVersioning(opt =>
+            {
+                opt.DefaultApiVersion = new ApiVersion(1, 0);
+                opt.AssumeDefaultVersionWhenUnspecified = true;
+                opt.ReportApiVersions = true;
+                opt.ApiVersionSelector = new DefaultApiVersionSelector(opt);
+
+                opt.ApiVersionReader = ApiVersionReader.Combine(
+                    new MediaTypeApiVersionReader(),
+                    new MediaTypeApiVersionReaderBuilder()
+                        .Template("application/vnd.dev-habit.hateoas.{version}+json")
+                        .Build());
+            })
+            .AddMvc();
 
         applicationBuilder.Services.AddOpenApi();
 

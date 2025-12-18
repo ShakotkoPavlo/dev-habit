@@ -1,4 +1,5 @@
 ﻿using System.Dynamic;
+using Asp.Versioning;
 using DevHabit.Api.Mappers;
 using DevHabit.Application.Services;
 using DevHabit.Contracts.Habits;
@@ -13,6 +14,7 @@ namespace DevHabit.Api.Controllers;
 
 [ApiController]
 [Route("habits")]
+[ApiVersion(1.0)]
 public class HabitsController(ApplicationDbContext dbContext, LinkService linkService) : ControllerBase
 {
     [HttpGet]
@@ -27,7 +29,7 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
 
         habitsRequest.Search ??= habitsRequest.Search?.Trim().ToLowerInvariant();
 
-        IQueryable<Habit> habitsQuery = dbContext
+        IQueryable<HabitWithTags> habitsQuery = dbContext
             .Habits
             .Where(h => habitsRequest.Search == null ||
                         h.Name.Contains(habitsRequest.Search, StringComparison.InvariantCultureIgnoreCase) ||
@@ -40,7 +42,7 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
 
         int totalCount = await habitsQuery.CountAsync();
 
-        List<Habit> habits = await habitsQuery
+        List<HabitWithTags> habits = await habitsQuery
             .Skip((habitsRequest.Page - 1) * habitsRequest.PageSize)
             .Take(habitsRequest.PageSize)
             .ToListAsync();
@@ -64,6 +66,7 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
     }
 
     [HttpGet("{id}")]
+    [MapToApiVersion(1.0)]
     public async Task<IActionResult> GetHabit(
         string id,
         string? fields,
@@ -78,10 +81,48 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
                 detail: $"The provided data shaping fields isn't valid: '{fields}'");
         }
 
-        Habit? habit = await dbContext
+        HabitWithTags? habit = await dbContext
             .Habits
             .Where(h => h.Id == id)
             .Select(HabitQueries.ProjectToContract())
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (habit is null)
+        {
+            return NotFound(id);
+        }
+
+        ExpandoObject shapedHabit = dataShapingService.ShapedData(habit, fields);
+
+        if (accept == CustomMediaTypesNames.Application.HateoasJson)
+        {
+            shapedHabit.TryAdd("links", CreateLinksForHabit(id, fields));
+        }
+
+        return Ok(shapedHabit);
+    }
+
+
+    [HttpGet("{id}")]
+    [ApiVersion(2.0)]
+    public async Task<IActionResult> GetHabitV2(
+        string id,
+        string? fields,
+        DataShapingService dataShapingService,
+        [FromHeader] string? accept,
+        CancellationToken cancellationToken = default)
+    {
+        if (!dataShapingService.Validate<Habit>(fields))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"The provided data shaping fields isn't valid: '{fields}'");
+        }
+
+        HabitWithTagsV2? habit = await dbContext
+            .Habits
+            .Where(h => h.Id == id)
+            .Select(HabitQueries.ProjectToContractV2())
             .FirstOrDefaultAsync(cancellationToken);
 
         if (habit is null)

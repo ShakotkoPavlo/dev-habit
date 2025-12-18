@@ -107,9 +107,9 @@ public static class HabitMappings
 
 public static class HabitQueries
 {
-    public static Expression<Func<DomainHabit, Habit>> ProjectToContract()
+    public static Expression<Func<DomainHabit, HabitWithTags>> ProjectToContract()
     {
-        return h => new Habit
+        return h => new HabitWithTags
         {
             Id = h.Id,
             Name = h.Name,
@@ -138,7 +138,42 @@ public static class HabitQueries
             CreatedAtUtc = h.CreatedAtUtc,
             UpdatedAtUtc = h.UpdatedAtUtc,
             LastCompletedAtUtc = h.LastCompletedAtUtc,
-            //Tags = h.Tags.Select(t => t.Id).ToArray()
+            Tags = h.Tags.Select(t => t.Id).ToArray()
+        };
+    }
+
+    public static Expression<Func<DomainHabit, HabitWithTagsV2>> ProjectToContractV2()
+    {
+        return h => new HabitWithTagsV2
+        {
+            Id = h.Id,
+            Name = h.Name,
+            Description = h.Description,
+            Frequency = new Frequency
+            {
+                Type = Enum.Parse<Contracts.Habits.Enums.FrequencyType>(h.Frequency.Type.ToString()),
+                TimesPerPeriod = h.Frequency.TimesPerPeriod
+            },
+            Type = Enum.Parse<Contracts.Habits.Enums.HabitType>(h.Type.ToString()),
+            Target = new Target
+            {
+                Value = h.Target.Value,
+                Unit = h.Target.Unit
+            },
+            Status = Enum.Parse<Contracts.Habits.Enums.HabitStatus>(h.Status.ToString()),
+            IsArchived = h.IsArchived,
+            EndDate = h.EndDate,
+            Milestone = h.Milestone != null
+                ? new Milestone
+                {
+                    Target = h.Milestone.Target,
+                    Current = h.Milestone.Current
+                }
+                : null,
+            CreatedAt = h.CreatedAtUtc,
+            UpdatedAt = h.UpdatedAtUtc,
+            LastCompletedAt = h.LastCompletedAtUtc,
+            Tags = h.Tags.Select(t => t.Id).ToArray()
         };
     }
 }
