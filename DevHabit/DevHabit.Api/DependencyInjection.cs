@@ -3,6 +3,8 @@ using DevHabit.Application.Services;
 using DevHabit.Contracts.Habits.Requests;
 using DevHabit.Infrastructure.Database;
 using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Newtonsoft.Json.Serialization;
@@ -25,6 +27,15 @@ public static class DependencyInjection
             })
             .AddNewtonsoftJson(options => options.SerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver())
             .AddXmlSerializerFormatters();
+
+        applicationBuilder.Services.Configure<MvcOptions>(opt =>
+        {
+            NewtonsoftJsonOutputFormatter jsonOutputFormatter = opt.OutputFormatters
+                .OfType<NewtonsoftJsonOutputFormatter>()
+                .FirstOrDefault()!;
+
+            jsonOutputFormatter.SupportedMediaTypes.Add(CustomMediaTypesNames.Application.HateoasJson);
+        });
 
         applicationBuilder.Services.AddOpenApi();
 

@@ -16,7 +16,7 @@ namespace DevHabit.Api.Controllers;
 public class HabitsController(ApplicationDbContext dbContext, LinkService linkService) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetHabits([FromQuery] SearchHabitsRequest habitsRequest, DataShapingService dataShapingService)
+    public async Task<IActionResult> GetHabits([FromQuery] SearchHabitsRequest habitsRequest, DataShapingService dataShapingService, [FromHeader] string? accept)
     {
         if (!dataShapingService.Validate<Habit>(habitsRequest.Fields))
         {
@@ -45,15 +45,20 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
             .Take(habitsRequest.PageSize)
             .ToListAsync();
 
+        bool includeLinks = accept != null && accept.Contains(CustomMediaTypesNames.Application.HateoasJson, StringComparison.InvariantCultureIgnoreCase);
+
         var paginationResult = new PaginationResult<ExpandoObject>
         {
-            Items = dataShapingService.ShapeCollectionData(habits, habitsRequest.Fields, h => CreateLinksForHabit(h.Id, habitsRequest.Fields)),
+            Items = dataShapingService.ShapeCollectionData(habits, habitsRequest.Fields, includeLinks ? h => CreateLinksForHabit(h.Id, habitsRequest.Fields) : null),
             TotalCount = totalCount,
             Page = habitsRequest.Page,
             PageSize = habitsRequest.PageSize,
         };
 
-        paginationResult.Links = CreateLinksForHabit(habitsRequest, paginationResult.HasNextPage, paginationResult.HasPreviousPage);
+        if (includeLinks)
+        {
+            paginationResult.Links = CreateLinksForHabit(habitsRequest, paginationResult.HasNextPage, paginationResult.HasPreviousPage);
+        }
 
         return Ok(paginationResult);
     }
@@ -63,6 +68,7 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
         string id,
         string? fields,
         DataShapingService dataShapingService,
+        [FromHeader] string? accept,
         CancellationToken cancellationToken = default)
     {
         if (!dataShapingService.Validate<Habit>(fields))
@@ -85,7 +91,10 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
 
         ExpandoObject shapedHabit = dataShapingService.ShapedData(habit, fields);
 
-        shapedHabit.TryAdd("links", CreateLinksForHabit(id, fields));
+        if (accept == CustomMediaTypesNames.Application.HateoasJson)
+        {
+            shapedHabit.TryAdd("links", CreateLinksForHabit(id, fields));
+        }
 
         return Ok(shapedHabit);
     }
