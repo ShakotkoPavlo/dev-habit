@@ -2,11 +2,17 @@
 
 namespace DevHabit.Contracts.Habits.Requests;
 
-public class SearchHabitsRequest
+public sealed record SearchHabitsRequest
 {
     public string? Search { get; set; }
 
-    public HabitStatus? Status { get; set; }
+    public HabitStatus? Status { get; init; }
 
-    public HabitType? Type { get; set; }
+    public HabitType? Type { get; init; }
+
+    public int Page { get; init; } = 1;
+
+    public int PageSize { get; init; } = 10;
+
+    public string Fields { get; set; }
 }

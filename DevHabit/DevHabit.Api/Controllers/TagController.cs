@@ -1,4 +1,5 @@
 ﻿using DevHabit.Api.Mappers;
+using DevHabit.Contracts.Habits;
 using DevHabit.Contracts.Tags.Requests;
 using DevHabit.Domain.Habits.Entities;
 using DevHabit.Infrastructure.Database;
@@ -16,14 +17,14 @@ namespace DevHabit.Api.Controllers;
 public class TagController(ApplicationDbContext dbContext) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IList<Tag>>> GetTags(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<PaginationResult<Tag>>> GetTags(CancellationToken cancellationToken = default)
     {
         List<Tag> tags = await dbContext
             .Tags
             .Select(TagQueries.ProjectToContract())
             .ToListAsync(cancellationToken);
 
-        return Ok(tags);
+        return Ok(new PaginationResult<Tag>{ Items = tags});
     }
 
     [HttpGet("{id}")]
@@ -47,7 +48,6 @@ public class TagController(ApplicationDbContext dbContext) : ControllerBase
     public async Task<ActionResult<Tag>> CreateTag(
         CreateTagRequest request,
         IValidator<CreateTagRequest> validator,
-        ProblemDetailsFactory problemDetailsFactory,
         CancellationToken cancellationToken = default)
     {
         await validator.ValidateAndThrowAsync(request, cancellationToken);

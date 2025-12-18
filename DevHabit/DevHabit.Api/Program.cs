@@ -1,8 +1,10 @@
 using DevHabit.Api.Extensions;
 using DevHabit.Api.Middleware;
+using DevHabit.Application.Services;
 using DevHabit.Contracts.Habits.Requests;
 using DevHabit.Infrastructure.Database.Extensions;
 using FluentValidation;
+using Newtonsoft.Json.Serialization;
 using Npgsql;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -16,7 +18,7 @@ builder.Services
     {
         options.ReturnHttpNotAcceptable = true;
     })
-    .AddNewtonsoftJson()
+    .AddNewtonsoftJson(options => options.SerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver())
     .AddXmlSerializerFormatters();
 
 builder.Services.AddValidatorsFromAssemblyContaining<CreateHabitRequestValidator>();
@@ -49,6 +51,8 @@ builder.Logging.AddOpenTelemetry(options =>
     options.IncludeFormattedMessage = true;
     options.IncludeScopes = true;
 });
+
+builder.Services.AddTransient<DataShapingService>();
 
 WebApplication app = builder.Build();
 

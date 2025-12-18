@@ -1,9 +1,10 @@
-﻿using DevHabit.Api.Mappers;
+﻿using System.Dynamic;
+using DevHabit.Api.Mappers;
+using DevHabit.Application.Services;
 using DevHabit.Contracts.Habits;
 using DevHabit.Contracts.Habits.Requests;
 using DevHabit.Infrastructure.Database;
 using FluentValidation;
-using FluentValidation.Results;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,22 +16,61 @@ namespace DevHabit.Api.Controllers;
 public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IList<HabitWithTags>>> GetHabits([FromQuery] SearchHabitsRequest habitsRequest)
+    public async Task<IActionResult> GetHabits([FromQuery] SearchHabitsRequest habitsRequest, DataShapingService dataShapingService)
     {
+        if (!dataShapingService.Validate<Habit>(habitsRequest.Fields))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"The provided data shaping fields isn't valid: '{habitsRequest.Fields}'");
+        }
+
         habitsRequest.Search ??= habitsRequest.Search?.Trim().ToLowerInvariant();
 
-        List<HabitWithTags> contractHabits = await dbContext
+        IQueryable<Habit> habitsQuery = dbContext
             .Habits
-            .Select(HabitQueries.ProjectToContract())
+            .Where(h => habitsRequest.Search == null ||
+                        h.Name.Contains(habitsRequest.Search, StringComparison.InvariantCultureIgnoreCase) ||
+                        h.Description != null && h.Description.Contains(habitsRequest.Search, StringComparison.InvariantCultureIgnoreCase))
+            .Where(h => habitsRequest.Type == null || h.Type.ToString() == habitsRequest.Type.Value.ToString())
+            .Where(h => habitsRequest.Status == null || h.Status.ToString() == habitsRequest.Status.ToString())
+            .Skip((habitsRequest.Page - 1) * habitsRequest.PageSize)
+            .Take(habitsRequest.PageSize)
+            .Select(HabitQueries.ProjectToContract());
+
+        int totalCount = await habitsQuery.CountAsync();
+
+        List<Habit> habits = await habitsQuery
+            .Skip((habitsRequest.Page - 1) * habitsRequest.PageSize)
+            .Take(habitsRequest.PageSize)
             .ToListAsync();
 
-        return Ok(contractHabits);
+        var paginationResult = new PaginationResult<ExpandoObject>
+        {
+            Items = dataShapingService.ShapeCollectionData(habits, habitsRequest.Fields),
+            TotalCount = totalCount,
+            Page = habitsRequest.Page,
+            PageSize = habitsRequest.PageSize
+        };
+
+        return Ok(paginationResult.Items);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<Habit>> GetHabit(string id, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetHabit(
+        string id,
+        string? fields,
+        DataShapingService dataShapingService,
+        CancellationToken cancellationToken = default)
     {
-        HabitWithTags? habit = await dbContext
+        if (!dataShapingService.Validate<Habit>(fields))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"The provided data shaping fields isn't valid: '{fields}'");
+        }
+
+        Habit? habit = await dbContext
             .Habits
             .Where(h => h.Id == id)
             .Select(HabitQueries.ProjectToContract())
@@ -41,7 +81,9 @@ public class HabitsController(ApplicationDbContext dbContext) : ControllerBase
             return NotFound(id);
         }
 
-        return Ok(habit);
+        ExpandoObject shapedHabit = dataShapingService.ShapedData(habit, fields);
+
+        return Ok(shapedHabit);
     }
 
     [HttpPost]

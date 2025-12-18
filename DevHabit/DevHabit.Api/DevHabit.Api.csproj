@@ -26,8 +26,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DevHabit.Application\DevHabit.Application.csproj" />
     <ProjectReference Include="..\DevHabit.Contracts\DevHabit.Contracts.csproj" />
-    <ProjectReference Include="..\DevHabit.Persistance\DevHabit.Infrastructure.csproj" />
+    <ProjectReference Include="..\DevHabit.Infrastructure\DevHabit.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
