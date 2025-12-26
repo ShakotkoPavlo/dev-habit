@@ -1,4 +1,4 @@
-﻿namespace DevHabit.Domain.Habits.Entities.Enums;
+﻿namespace DevHabit.Domain.Entities.Enums;
 
 public enum HabitType
 {

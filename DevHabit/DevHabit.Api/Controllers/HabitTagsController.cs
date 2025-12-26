@@ -1,5 +1,5 @@
 ﻿using DevHabit.Contracts.Tags.Requests;
-using DevHabit.Domain.Habits.Entities;
+using DevHabit.Domain.Entities;
 using DevHabit.Infrastructure.Database;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

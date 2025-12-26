@@ -1,4 +1,4 @@
-﻿namespace DevHabit.Domain.Habits.Entities;
+﻿namespace DevHabit.Domain.Entities;
 
 public sealed class Milestone
 {

@@ -2,7 +2,7 @@
 
 namespace DevHabit.Contracts.Habits.Requests;
 
-public sealed record SearchHabitsRequest
+public sealed record SearchHabitsRequest : AcceptHeader
 {
     public string? Search { get; set; }
 

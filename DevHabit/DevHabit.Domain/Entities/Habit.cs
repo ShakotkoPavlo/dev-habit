@@ -1,6 +1,6 @@
-﻿using DevHabit.Domain.Habits.Entities.Enums;
+﻿using DevHabit.Domain.Entities.Enums;
 
-namespace DevHabit.Domain.Habits.Entities;
+namespace DevHabit.Domain.Entities;
 
 public class Habit
 {

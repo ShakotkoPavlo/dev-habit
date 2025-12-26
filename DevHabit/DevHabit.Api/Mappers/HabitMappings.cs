@@ -1,11 +1,16 @@
 ﻿using System.Linq.Expressions;
 using DevHabit.Contracts.Habits;
-using DevHabit.Domain.Habits.Entities.Enums;
-using DomainHabit = DevHabit.Domain.Habits.Entities.Habit;
-using DomainFrequency = DevHabit.Domain.Habits.Entities.Frequency;
-using DomainMilestone = DevHabit.Domain.Habits.Entities.Milestone;
-using DomainTarget = DevHabit.Domain.Habits.Entities.Target;
+using DomainHabit = DevHabit.Domain.Entities.Habit;
+using DomainFrequency = DevHabit.Domain.Entities.Frequency;
+using DomainMilestone = DevHabit.Domain.Entities.Milestone;
+using DomainTarget = DevHabit.Domain.Entities.Target;
 using DevHabit.Contracts.Habits.Requests;
+using DevHabit.Domain.Entities;
+using DevHabit.Domain.Entities.Enums;
+using Frequency = DevHabit.Contracts.Habits.Frequency;
+using Habit = DevHabit.Contracts.Habits.Habit;
+using Milestone = DevHabit.Contracts.Habits.Milestone;
+using Target = DevHabit.Contracts.Habits.Target;
 
 namespace DevHabit.Api.Mappers;
 

@@ -1,6 +1,8 @@
-﻿namespace DevHabit.Contracts.Tags;
+﻿using DevHabit.Contracts.Habits;
 
-public record Tag
+namespace DevHabit.Contracts.Tags;
+
+public record Tag : ILinkResponse
 {
     public string Id { get; set; }
 
@@ -11,4 +13,5 @@ public record Tag
     public DateTime CreatedAtUtc { get; set; }
 
     public DateTime? UpdatedAtUtc { get; set; }
+    public List<Link> Links { get; set; }
 }

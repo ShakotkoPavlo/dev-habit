@@ -1,7 +1,8 @@
 ﻿using DevHabit.Api.Mappers;
+using DevHabit.Application.Services;
+using DevHabit.Contracts;
 using DevHabit.Contracts.Habits;
 using DevHabit.Contracts.Tags.Requests;
-using DevHabit.Domain.Habits.Entities;
 using DevHabit.Infrastructure.Database;
 using FluentValidation;
 using FluentValidation.Results;
@@ -14,7 +15,7 @@ namespace DevHabit.Api.Controllers;
 
 [ApiController]
 [Route("tags")]
-public class TagController(ApplicationDbContext dbContext) : ControllerBase
+public class TagController(ApplicationDbContext dbContext, LinkService linkService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PaginationResult<Tag>>> GetTags(CancellationToken cancellationToken = default)
@@ -28,7 +29,7 @@ public class TagController(ApplicationDbContext dbContext) : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<Tag>> GetTag(string id, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<Tag>> GetTag(string id, [FromHeader] AcceptHeader acceptHeader, CancellationToken cancellationToken = default)
     {
         Tag? tag = await dbContext
             .Tags
@@ -39,6 +40,11 @@ public class TagController(ApplicationDbContext dbContext) : ControllerBase
         if (tag is null)
         {
             return NotFound(id);
+        }
+
+        if (acceptHeader.IncludeLinks)
+        {
+            tag.Links = CreateLinksForTag(id);
         }
 
         return Ok(tag);
@@ -52,7 +58,7 @@ public class TagController(ApplicationDbContext dbContext) : ControllerBase
     {
         await validator.ValidateAndThrowAsync(request, cancellationToken);
 
-        Domain.Habits.Entities.Tag newTag = request.ToEntity();
+        Domain.Entities.Tag newTag = request.ToEntity();
 
         if (await dbContext.Tags.AnyAsync(t => t.Name == request.Name, cancellationToken))
         {
@@ -73,7 +79,7 @@ public class TagController(ApplicationDbContext dbContext) : ControllerBase
     [HttpPut]
     public async Task<ActionResult<Tag>> UpdateTag(string id, UpdateTagRequest request)
     {
-        Domain.Habits.Entities.Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(t => t.Id == id);
+        Domain.Entities.Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(t => t.Id == id);
 
         if (tag is null)
         {
@@ -90,7 +96,7 @@ public class TagController(ApplicationDbContext dbContext) : ControllerBase
     [HttpDelete]
     public async Task<ActionResult> DeleteTag(string id)
     {
-        Domain.Habits.Entities.Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(t => t.Id == id);
+        Domain.Entities.Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(t => t.Id == id);
 
         if (tag is null)
         {
@@ -102,5 +108,28 @@ public class TagController(ApplicationDbContext dbContext) : ControllerBase
         await dbContext.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private List<Link> CreateLinksForTags()
+    {
+        List<Link> links =
+        [
+            linkService.GenerateLink(nameof(GetTags), "self", HttpMethods.Get),
+            linkService.GenerateLink(nameof(CreateTag), "create", HttpMethods.Post)
+        ];
+
+        return links;
+    }
+
+    private List<Link> CreateLinksForTag(string id)
+    {
+        List<Link> links =
+        [
+            linkService.GenerateLink(nameof(GetTag), "self", HttpMethods.Get, new { id }),
+            linkService.GenerateLink(nameof(UpdateTag), "update", HttpMethods.Put, new { id }),
+            linkService.GenerateLink(nameof(DeleteTag), "delete", HttpMethods.Delete, new { id })
+        ];
+
+        return links;
     }
 }

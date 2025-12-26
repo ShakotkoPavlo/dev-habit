@@ -1,9 +1,11 @@
 ﻿using Asp.Versioning;
 using DevHabit.Api.Middleware;
 using DevHabit.Application.Services;
+using DevHabit.Contracts;
 using DevHabit.Contracts.Habits.Requests;
 using DevHabit.Infrastructure.Database;
 using FluentValidation;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.EntityFrameworkCore;
@@ -83,6 +85,13 @@ public static class DependencyInjection
                     npgsqlOptions => npgsqlOptions.MigrationsHistoryTable(HistoryRepository.DefaultTableName, DatabaseConstants.ApplicationSchema))
                 .UseSnakeCaseNamingConvention());
 
+        applicationBuilder.Services.AddDbContext<ApplicationIdentityDbContext>(options =>
+            options
+                .UseNpgsql(
+                    applicationBuilder.Configuration.GetConnectionString("Database"),
+                    npgsqlOptions => npgsqlOptions.MigrationsHistoryTable(HistoryRepository.DefaultTableName, DatabaseConstants.IdentitySchema))
+                .UseSnakeCaseNamingConvention());
+
         return applicationBuilder;
     }
 
@@ -118,6 +127,15 @@ public static class DependencyInjection
 
         applicationBuilder.Services.AddTransient<DataShapingService>();
         applicationBuilder.Services.AddTransient<LinkService>();
+
+        return applicationBuilder;
+    }
+
+    public static WebApplicationBuilder AddAuthenticationServices(this WebApplicationBuilder applicationBuilder)
+    {
+        applicationBuilder.Services
+            .AddIdentity<IdentityUser, IdentityRole>()
+            .AddEntityFrameworkStores<ApplicationIdentityDbContext>();
 
         return applicationBuilder;
     }

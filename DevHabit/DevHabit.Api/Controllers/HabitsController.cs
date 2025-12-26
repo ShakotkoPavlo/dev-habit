@@ -1,24 +1,35 @@
 ﻿using System.Dynamic;
+using System.Net.Mime;
 using Asp.Versioning;
 using DevHabit.Api.Mappers;
 using DevHabit.Application.Services;
+using DevHabit.Contracts;
 using DevHabit.Contracts.Habits;
 using DevHabit.Contracts.Habits.Requests;
+using DevHabit.Domain.Entities;
 using DevHabit.Infrastructure.Database;
 using FluentValidation;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Habit = DevHabit.Contracts.Habits.Habit;
 
 namespace DevHabit.Api.Controllers;
 
 [ApiController]
 [Route("habits")]
 [ApiVersion(1.0)]
+[Produces(
+    MediaTypeNames.Application.Json,
+    CustomMediaTypesNames.Application.JsonV1,
+    CustomMediaTypesNames.Application.JsonV2,
+    CustomMediaTypesNames.Application.HateoasJson,
+    CustomMediaTypesNames.Application.HateoasJsonV1,
+    CustomMediaTypesNames.Application.HateoasJsonV2)]
 public class HabitsController(ApplicationDbContext dbContext, LinkService linkService) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetHabits([FromQuery] SearchHabitsRequest habitsRequest, DataShapingService dataShapingService, [FromHeader] string? accept)
+    public async Task<IActionResult> GetHabits([FromQuery] SearchHabitsRequest habitsRequest, DataShapingService dataShapingService, CancellationToken token = default)
     {
         if (!dataShapingService.Validate<Habit>(habitsRequest.Fields))
         {
@@ -40,24 +51,22 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
             .Take(habitsRequest.PageSize)
             .Select(HabitQueries.ProjectToContract());
 
-        int totalCount = await habitsQuery.CountAsync();
+        int totalCount = await habitsQuery.CountAsync(token);
 
         List<HabitWithTags> habits = await habitsQuery
             .Skip((habitsRequest.Page - 1) * habitsRequest.PageSize)
             .Take(habitsRequest.PageSize)
-            .ToListAsync();
-
-        bool includeLinks = accept != null && accept.Contains(CustomMediaTypesNames.Application.HateoasJson, StringComparison.InvariantCultureIgnoreCase);
+            .ToListAsync(token);
 
         var paginationResult = new PaginationResult<ExpandoObject>
         {
-            Items = dataShapingService.ShapeCollectionData(habits, habitsRequest.Fields, includeLinks ? h => CreateLinksForHabit(h.Id, habitsRequest.Fields) : null),
+            Items = dataShapingService.ShapeCollectionData(habits, habitsRequest.Fields, habitsRequest.IncludeLinks ? h => CreateLinksForHabit(h.Id, habitsRequest.Fields) : null),
             TotalCount = totalCount,
             Page = habitsRequest.Page,
             PageSize = habitsRequest.PageSize,
         };
 
-        if (includeLinks)
+        if (habitsRequest.IncludeLinks)
         {
             paginationResult.Links = CreateLinksForHabit(habitsRequest, paginationResult.HasNextPage, paginationResult.HasPreviousPage);
         }
@@ -69,16 +78,15 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
     [MapToApiVersion(1.0)]
     public async Task<IActionResult> GetHabit(
         string id,
-        string? fields,
+        [FromQuery] SearchHabitsRequest habitsRequest,
         DataShapingService dataShapingService,
-        [FromHeader] string? accept,
         CancellationToken cancellationToken = default)
     {
-        if (!dataShapingService.Validate<Habit>(fields))
+        if (!dataShapingService.Validate<Habit>(habitsRequest.Fields))
         {
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                detail: $"The provided data shaping fields isn't valid: '{fields}'");
+                detail: $"The provided data shaping fields isn't valid: '{habitsRequest.Fields}'");
         }
 
         HabitWithTags? habit = await dbContext
@@ -92,11 +100,11 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
             return NotFound(id);
         }
 
-        ExpandoObject shapedHabit = dataShapingService.ShapedData(habit, fields);
+        ExpandoObject shapedHabit = dataShapingService.ShapedData(habit, habitsRequest.Fields);
 
-        if (accept == CustomMediaTypesNames.Application.HateoasJson)
+        if (habitsRequest.IncludeLinks)
         {
-            shapedHabit.TryAdd("links", CreateLinksForHabit(id, fields));
+            shapedHabit.TryAdd("links", CreateLinksForHabit(id, habitsRequest.Fields));
         }
 
         return Ok(shapedHabit);
@@ -107,16 +115,15 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
     [ApiVersion(2.0)]
     public async Task<IActionResult> GetHabitV2(
         string id,
-        string? fields,
+        [FromQuery] SearchHabitsRequest habitsRequest,
         DataShapingService dataShapingService,
-        [FromHeader] string? accept,
         CancellationToken cancellationToken = default)
     {
-        if (!dataShapingService.Validate<Habit>(fields))
+        if (!dataShapingService.Validate<Habit>(habitsRequest.Fields))
         {
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                detail: $"The provided data shaping fields isn't valid: '{fields}'");
+                detail: $"The provided data shaping fields isn't valid: '{habitsRequest.Fields}'");
         }
 
         HabitWithTagsV2? habit = await dbContext
@@ -130,11 +137,11 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
             return NotFound(id);
         }
 
-        ExpandoObject shapedHabit = dataShapingService.ShapedData(habit, fields);
+        ExpandoObject shapedHabit = dataShapingService.ShapedData(habit, habitsRequest.Fields);
 
-        if (accept == CustomMediaTypesNames.Application.HateoasJson)
+        if (habitsRequest.IncludeLinks)
         {
-            shapedHabit.TryAdd("links", CreateLinksForHabit(id, fields));
+            shapedHabit.TryAdd("links", CreateLinksForHabit(id, habitsRequest.Fields));
         }
 
         return Ok(shapedHabit);
@@ -148,7 +155,7 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
     {
         await validator.ValidateAndThrowAsync(habitRequest, cancellationToken);
 
-        Domain.Habits.Entities.Habit habit = habitRequest.ToEntity();
+        Domain.Entities.Habit habit = habitRequest.ToEntity();
 
         await dbContext.Habits.AddAsync(habit, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -162,7 +169,7 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
     [HttpPut("{id}")]
     public async Task<ActionResult> UpdateHabit(string id, UpdateHabitRequest request, CancellationToken cancellationToken = default)
     {
-        Domain.Habits.Entities.Habit? habit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
+        Domain.Entities.Habit? habit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
 
         if (habit is null)
         {
@@ -179,7 +186,7 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
     [HttpPatch("{id}")]
     public async Task<ActionResult> PatchHabit(string id, JsonPatchDocument<Habit> patchDocument, CancellationToken cancellationToken = default)
     {
-        Domain.Habits.Entities.Habit? domainHabit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
+        Domain.Entities.Habit? domainHabit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
 
         if (domainHabit is null)
         {
@@ -207,7 +214,7 @@ public class HabitsController(ApplicationDbContext dbContext, LinkService linkSe
     [HttpDelete("{id}")]
     public async Task<ActionResult> DeleteHabit(string id, CancellationToken cancellationToken = default)
     {
-        Domain.Habits.Entities.Habit? domainHabit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
+        Domain.Entities.Habit? domainHabit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
 
         if (domainHabit is null)
         {

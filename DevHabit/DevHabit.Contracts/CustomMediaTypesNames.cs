@@ -1,4 +1,4 @@
-﻿namespace DevHabit.Api;
+﻿namespace DevHabit.Contracts;
 
 public static class CustomMediaTypesNames
 {
@@ -9,5 +9,7 @@ public static class CustomMediaTypesNames
         public const string HateoasJson = "application/vnd.dev-habit.hateoas+json";
         public const string HateoasJsonV1 = "application/vnd.dev-habit.hateoas.1+json";
         public const string HateoasJsonV2 = "application/vnd.dev-habit.hateoas.2+json";
+
+        public const string HateoasSubType = "hateoas";
     }
 }
