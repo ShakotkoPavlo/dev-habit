@@ -11,8 +11,13 @@ public class TagConfiguration : IEntityTypeConfiguration<Tag>
         builder.HasKey(h => h.Id);
 
         builder.Property(h => h.Id).HasMaxLength(500);
+        builder.Property(h => h.UserId).HasMaxLength(500);
         builder.Property(h => h.Name).HasMaxLength(50);
         builder.Property(h => h.Description).HasMaxLength(500);
-        builder.HasIndex(h => new { h.Name }).IsUnique();
+        builder.HasIndex(h => new { h.UserId, h.Name }).IsUnique();
+
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(t => t.UserId);
     }
 }

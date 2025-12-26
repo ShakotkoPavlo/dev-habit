@@ -1,15 +1,20 @@
-﻿using Asp.Versioning;
+﻿using System.Text;
+using Asp.Versioning;
 using DevHabit.Api.Middleware;
+using DevHabit.Api.Providers;
 using DevHabit.Application.Services;
 using DevHabit.Contracts;
 using DevHabit.Contracts.Habits.Requests;
 using DevHabit.Infrastructure.Database;
+using DevHabit.Infrastructure.Settings;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Serialization;
 using Npgsql;
 using OpenTelemetry;
@@ -128,6 +133,10 @@ public static class DependencyInjection
         applicationBuilder.Services.AddTransient<DataShapingService>();
         applicationBuilder.Services.AddTransient<LinkService>();
 
+        applicationBuilder.Services.AddTransient<TokenProvider>();
+        applicationBuilder.Services.AddMemoryCache();
+        applicationBuilder.Services.AddScoped<UserContext>();
+
         return applicationBuilder;
     }
 
@@ -136,6 +145,28 @@ public static class DependencyInjection
         applicationBuilder.Services
             .AddIdentity<IdentityUser, IdentityRole>()
             .AddEntityFrameworkStores<ApplicationIdentityDbContext>();
+
+        applicationBuilder.Services.Configure<JwtAuthOptions>(applicationBuilder.Configuration.GetSection("Jwt"));
+
+        JwtAuthOptions jwtAuthOptions = applicationBuilder.Configuration.GetSection("Jwt").Get<JwtAuthOptions>();
+
+        applicationBuilder.Services
+            .AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidIssuer = jwtAuthOptions!.Issuer,
+                    ValidAudience = jwtAuthOptions.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtAuthOptions.Key))
+                };
+            });
+
+        applicationBuilder.Services.AddAuthorization();
 
         return applicationBuilder;
     }

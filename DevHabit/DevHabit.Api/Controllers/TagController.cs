@@ -5,23 +5,34 @@ using DevHabit.Contracts.Habits;
 using DevHabit.Contracts.Tags.Requests;
 using DevHabit.Infrastructure.Database;
 using FluentValidation;
-using FluentValidation.Results;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Tag = DevHabit.Contracts.Tags.Tag;
 
 namespace DevHabit.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("tags")]
-public class TagController(ApplicationDbContext dbContext, LinkService linkService) : ControllerBase
+public class TagController(
+    ApplicationDbContext dbContext,
+    LinkService linkService,
+    UserContext userContext) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PaginationResult<Tag>>> GetTags(CancellationToken cancellationToken = default)
     {
+        string? userId = await userContext.GetUserIdAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
         List<Tag> tags = await dbContext
             .Tags
+            .Where(t => t.UserId == userId)
             .Select(TagQueries.ProjectToContract())
             .ToListAsync(cancellationToken);
 
@@ -31,8 +42,16 @@ public class TagController(ApplicationDbContext dbContext, LinkService linkServi
     [HttpGet("{id}")]
     public async Task<ActionResult<Tag>> GetTag(string id, [FromHeader] AcceptHeader acceptHeader, CancellationToken cancellationToken = default)
     {
+        string? userId = await userContext.GetUserIdAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
         Tag? tag = await dbContext
             .Tags
+            .Where(t => t.UserId == userId)
             .Where(t => t.Id == id)
             .Select(TagQueries.ProjectToContract())
             .FirstOrDefaultAsync(cancellationToken);
@@ -56,9 +75,16 @@ public class TagController(ApplicationDbContext dbContext, LinkService linkServi
         IValidator<CreateTagRequest> validator,
         CancellationToken cancellationToken = default)
     {
+        string? userId = await userContext.GetUserIdAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
         await validator.ValidateAndThrowAsync(request, cancellationToken);
 
-        Domain.Entities.Tag newTag = request.ToEntity();
+        Domain.Entities.Tag newTag = request.ToEntity(userId);
 
         if (await dbContext.Tags.AnyAsync(t => t.Name == request.Name, cancellationToken))
         {

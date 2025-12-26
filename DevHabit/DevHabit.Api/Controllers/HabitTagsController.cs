@@ -1,11 +1,13 @@
 ﻿using DevHabit.Contracts.Tags.Requests;
 using DevHabit.Domain.Entities;
 using DevHabit.Infrastructure.Database;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace DevHabit.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("habits/{habitId}/tags")]
 public class HabitTagsController(ApplicationDbContext dbContext): ControllerBase

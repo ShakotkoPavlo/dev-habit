@@ -1,7 +1,5 @@
 ﻿using System.Linq.Expressions;
-using DevHabit.Contracts.Tags;
 using DevHabit.Contracts.Tags.Requests;
-using DevHabit.Domain.Entities;
 using Tag = DevHabit.Contracts.Tags.Tag;
 
 namespace DevHabit.Api.Mappers;
@@ -20,11 +18,12 @@ public static class TagMappings
         };
     }
 
-    public static Domain.Entities.Tag ToEntity(this CreateTagRequest tag)
+    public static Domain.Entities.Tag ToEntity(this CreateTagRequest tag, string userId)
     {
         return new Domain.Entities.Tag
         {
             Id = $"t_{Guid.CreateVersion7()}",
+            UserId = userId,
             Name = tag.Name,
             Description = tag.Description,
             CreatedAtUtc = DateTime.UtcNow,

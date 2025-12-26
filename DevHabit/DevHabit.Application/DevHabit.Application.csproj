@@ -3,6 +3,10 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\DevHabit.Contracts\DevHabit.Contracts.csproj" />
+    <ProjectReference Include="..\DevHabit.Infrastructure\DevHabit.Infrastructure.csproj" />
   </ItemGroup>
 </Project>
