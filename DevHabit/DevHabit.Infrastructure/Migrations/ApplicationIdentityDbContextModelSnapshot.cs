@@ -30,9 +30,9 @@ namespace DevHabit.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<DateTime>("ExpiredAtUtc")
+                    b.Property<DateTime>("ExpiresAtUtc")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("expired_at_utc");
+                        .HasColumnName("expires_at_utc");
 
                     b.Property<string>("Token")
                         .IsRequired()

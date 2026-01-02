@@ -1,4 +1,6 @@
-﻿namespace DevHabit.Contracts.Habits;
+﻿using DevHabit.Contracts.Habits;
+
+namespace DevHabit.Contracts;
 
 public interface ILinkResponse
 {

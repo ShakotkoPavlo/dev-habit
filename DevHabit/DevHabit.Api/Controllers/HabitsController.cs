@@ -6,18 +6,18 @@ using DevHabit.Application.Services;
 using DevHabit.Contracts;
 using DevHabit.Contracts.Habits;
 using DevHabit.Contracts.Habits.Requests;
+using DevHabit.Domain.Entities;
 using DevHabit.Infrastructure.Database;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json.Linq;
 using Habit = DevHabit.Contracts.Habits.Habit;
 
 namespace DevHabit.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = $"{Roles.MemberRole}")]
 [ApiController]
 [Route("habits")]
 [ApiVersion(1.0)]
@@ -195,10 +195,10 @@ public class HabitsController(
         await dbContext.Habits.AddAsync(habit, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        Habit habitDto = habit.ToContract();
-        habitDto.Links = CreateLinksForHabit(habitDto.Id, null);
+        Habit habitContract = habit.ToContract();
+        habitContract.Links = CreateLinksForHabit(habitContract.Id, null);
 
-        return CreatedAtAction(nameof(GetHabit), new { id = habit.Id}, habit);
+        return CreatedAtAction(nameof(GetHabit), new { id = habitContract.Id}, habitContract);
     }
 
     [HttpPut("{id}")]

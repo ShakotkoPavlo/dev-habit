@@ -9,7 +9,8 @@ builder
     .AddDatabase()
     .AddOpenTelemetry()
     .AddApplicationServices()
-    .AddAuthenticationServices();
+    .AddAuthenticationServices()
+    .AddCorsPolicy();
 
 WebApplication app = builder.Build();
 
@@ -18,11 +19,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
     await app.ApplyMigrationsAsync();
+
+    await app.SeedInitialDataAsync();
 }
 
 app.UseHttpsRedirection();
 
 app.UseExceptionHandler();
+
+app.UseCors("DevHabitCorsPolicy");
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -3,6 +3,7 @@ using DevHabit.Application.Services;
 using DevHabit.Contracts;
 using DevHabit.Contracts.Habits;
 using DevHabit.Contracts.Tags.Requests;
+using DevHabit.Domain.Entities;
 using DevHabit.Infrastructure.Database;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +13,7 @@ using Tag = DevHabit.Contracts.Tags.Tag;
 
 namespace DevHabit.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = $"{Roles.MemberRole}")]
 [ApiController]
 [Route("tags")]
 public class TagController(

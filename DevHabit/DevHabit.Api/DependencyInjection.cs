@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Net.Http.Headers;
+using System.Text;
 using Asp.Versioning;
 using DevHabit.Api.Middleware;
 using DevHabit.Api.Providers;
@@ -136,6 +137,41 @@ public static class DependencyInjection
         applicationBuilder.Services.AddTransient<TokenProvider>();
         applicationBuilder.Services.AddMemoryCache();
         applicationBuilder.Services.AddScoped<UserContext>();
+
+        applicationBuilder.Services.AddScoped<GitHubAccessTokenService>();
+        applicationBuilder.Services.AddTransient<GitHubService>();
+        applicationBuilder.Services.AddTransient<EncryptionService>();
+
+        applicationBuilder.Services.AddHttpClient("github")
+            .ConfigureHttpClient(client =>
+            {
+                client.BaseAddress = new Uri("https://api.github.com");
+
+                client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("DevHabit", "1.0"));
+
+                client.DefaultRequestHeaders.Accept.Add(
+                    new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            });
+
+        applicationBuilder.Services.Configure<EncryptionOptions>(applicationBuilder.Configuration.GetSection("Encryption"));
+
+        return applicationBuilder;
+    }
+
+    public static WebApplicationBuilder AddCorsPolicy(this WebApplicationBuilder applicationBuilder)
+    {
+        CorsOptions corsOptions = applicationBuilder.Configuration.GetSection(CorsOptions.Section).Get<CorsOptions>()!;
+
+        applicationBuilder.Services.AddCors(options =>
+        {
+            options.AddPolicy(CorsOptions.PolicyName, policy =>
+            {
+                policy
+                    .WithOrigins(corsOptions.AllowedOrigins)
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
+            });
+        });
 
         return applicationBuilder;
     }

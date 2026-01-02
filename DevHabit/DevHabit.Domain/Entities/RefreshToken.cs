@@ -10,7 +10,7 @@ public class RefreshToken
 
     public required string UserId { get; set; }
 
-    public required DateTime ExpiredAtUtc { get; set; }
+    public required DateTime ExpiresAtUtc { get; set; }
 
     public IdentityUser User { get; set; }
 }

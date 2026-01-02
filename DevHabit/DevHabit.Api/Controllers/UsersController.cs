@@ -1,19 +1,20 @@
-﻿using System.Security.Claims;
-using DevHabit.Api.Mappers;
+﻿using DevHabit.Api.Mappers;
 using DevHabit.Application.Services;
-using DevHabit.Contracts.User;
+using DevHabit.Domain.Entities;
 using DevHabit.Infrastructure.Database;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using User = DevHabit.Contracts.User.User;
 
 namespace DevHabit.Api.Controllers;
 
-[Authorize]
 [ApiController]
+[Authorize(Roles = $"{Roles.MemberRole}")]
 [Route("[controller]")]
 public class UsersController(ApplicationDbContext dbContext, UserContext userContext) : ControllerBase
 {
+    [Authorize(Roles = $"{Roles.AdminRole}")]
     [HttpGet("{id}")]
     public async Task<ActionResult<User>> GetUserById(string id)
     {
