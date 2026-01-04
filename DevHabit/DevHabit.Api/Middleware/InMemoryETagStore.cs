@@ -18,7 +18,7 @@ public sealed partial class ETagMiddleware
 
         public void SetETag(string key, object resource)
         {
-            ETags.AddOrUpdate(key, GenerateETag(resource), (_, _) => GenerateETag(resource));
+            ETags.AddOrUpdate(key, CreateETag(resource), (_, _) => CreateETag(resource));
         }
 
         public void RemoveETag(string key)
@@ -26,7 +26,7 @@ public sealed partial class ETagMiddleware
             ETags.TryRemove(key, out _);
         }
 
-        private static string GenerateETag(object resource)
+        private static string CreateETag(object resource)
         {
             byte[] content = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(resource));
 
