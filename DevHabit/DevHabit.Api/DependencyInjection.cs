@@ -1,6 +1,8 @@
 ﻿using System.Net.Http.Headers;
 using System.Text;
+using System.Threading.RateLimiting;
 using Asp.Versioning;
+using DevHabit.Api.Extensions;
 using DevHabit.Api.Middleware;
 using DevHabit.Api.Providers;
 using DevHabit.Application.Services;
@@ -13,8 +15,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Serialization;
 using Npgsql;
@@ -22,6 +26,8 @@ using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Polly;
+using Refit;
 
 namespace DevHabit.Api;
 
@@ -67,6 +73,8 @@ public static class DependencyInjection
             .AddMvc();
 
         applicationBuilder.Services.AddOpenApi();
+
+        applicationBuilder.Services.AddResponseCaching();
 
         return applicationBuilder;
     }
@@ -139,7 +147,7 @@ public static class DependencyInjection
         applicationBuilder.Services.AddScoped<UserContext>();
 
         applicationBuilder.Services.AddScoped<GitHubAccessTokenService>();
-        applicationBuilder.Services.AddTransient<GitHubService>();
+        applicationBuilder.Services.AddTransient<RefitGitHubService>();
         applicationBuilder.Services.AddTransient<EncryptionService>();
 
         applicationBuilder.Services.AddHttpClient("github")
@@ -153,7 +161,37 @@ public static class DependencyInjection
                     new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
             });
 
+        applicationBuilder.Services.AddRefitClient<IIGitHubApi>(new RefitSettings
+            {
+                ContentSerializer = new NewtonsoftJsonContentSerializer()
+            })
+            .ConfigureHttpClient(client => client.BaseAddress = new Uri("https://api.github.com"))
+            .AddResilienceHandler("custom", pipeline =>
+            {
+                pipeline.AddTimeout(TimeSpan.FromSeconds(5));
+
+                pipeline.AddRetry(new HttpRetryStrategyOptions
+                {
+                    MaxRetryAttempts = 3,
+                    BackoffType = DelayBackoffType.Exponential,
+                    UseJitter = true,
+                    Delay = TimeSpan.FromMilliseconds(500),
+                });
+
+                pipeline.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+                {
+                    SamplingDuration = TimeSpan.FromSeconds(10),
+                    FailureRatio = 0.9,
+                    MinimumThroughput = 5,
+                    BreakDuration = TimeSpan.FromSeconds(5),
+                });
+
+                pipeline.AddTimeout(TimeSpan.FromSeconds(1));
+            });
+
         applicationBuilder.Services.Configure<EncryptionOptions>(applicationBuilder.Configuration.GetSection("Encryption"));
+
+        applicationBuilder.Services.AddSingleton<ETagMiddleware.InMemoryETagStore>();
 
         return applicationBuilder;
     }
@@ -205,5 +243,64 @@ public static class DependencyInjection
         applicationBuilder.Services.AddAuthorization();
 
         return applicationBuilder;
+    }
+
+    public static WebApplicationBuilder AddRateLimiting(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.OnRejected = async (context, token) =>
+            {
+                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
+                {
+                    context.HttpContext.Response.Headers.RetryAfter = $"{retryAfter.TotalSeconds}";
+
+                    ProblemDetailsFactory problemDetailsFactory = context.HttpContext.RequestServices
+                        .GetRequiredService<ProblemDetailsFactory>();
+                    Microsoft.AspNetCore.Mvc.ProblemDetails problemDetails = problemDetailsFactory
+                        .CreateProblemDetails(
+                            context.HttpContext,
+                            StatusCodes.Status429TooManyRequests,
+                            "Too Many Requests",
+                            detail: $"Too many requests. Please try again after {retryAfter.TotalSeconds} seconds."
+                        );
+
+                    await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: token);
+                }
+            };
+
+            options.AddPolicy("default", httpContext =>
+            {
+                string identityId = httpContext.User.GetIdentityId() ?? string.Empty;
+
+                if (!string.IsNullOrEmpty(identityId))
+                {
+                    return RateLimitPartition.GetTokenBucketLimiter(
+                        identityId,
+                        _ =>
+                            new TokenBucketRateLimiterOptions
+                            {
+                                TokenLimit = 100,
+                                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                                QueueLimit = 5,
+                                ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                                TokensPerPeriod = 25
+                            });
+                }
+
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    "anonymous",
+                    _ =>
+                        new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 5,
+                            Window = TimeSpan.FromMinutes(1)
+                        });
+            });
+        });
+
+        return builder;
     }
 }

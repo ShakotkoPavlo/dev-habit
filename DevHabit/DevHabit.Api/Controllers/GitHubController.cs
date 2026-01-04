@@ -11,7 +11,7 @@ namespace DevHabit.Api.Controllers;
 [ApiController]
 [Authorize(Roles = Roles.MemberRole)]
 [Route("github")]
-public class GitHubController(GitHubAccessTokenService gitHubAccessTokenService, GitHubService gitHubService, UserContext userContext, LinkService linkService) : ControllerBase
+public class GitHubController(GitHubAccessTokenService gitHubAccessTokenService, RefitGitHubService refitGitHubService, UserContext userContext, LinkService linkService) : ControllerBase
 {
     [HttpPut("personal-access-token")]
     public async Task<IActionResult> StoreAccessToken(StoreGitHubAccessToken gitHubAccessToken, CancellationToken cancellationToken = default)
@@ -60,7 +60,7 @@ public class GitHubController(GitHubAccessTokenService gitHubAccessTokenService,
             return NotFound();
         }
 
-        GitHubUserProfile? userProfile = await gitHubService.GetUserProfileAsync(accessToken, cancellationToken);
+        GitHubUserProfile? userProfile = await refitGitHubService.GetUserProfileAsync(accessToken, cancellationToken);
 
         if (userProfile == null)
         {

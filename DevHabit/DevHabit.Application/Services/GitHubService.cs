@@ -2,58 +2,45 @@
 using DevHabit.Contracts.GitHub;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Refit;
 
 namespace DevHabit.Application.Services;
 
-public class GitHubService(IHttpClientFactory clientFactory, ILogger<GitHubService> logger)
+public class RefitGitHubService(IIGitHubApi gitHubApi, ILogger<RefitGitHubService> logger)
 {
     public async Task<GitHubUserProfile?> GetUserProfileAsync(
         string accessToken,
         CancellationToken cancellationToken = default)
     {
-        using HttpClient client = CreateGitHubClient(accessToken);
+        ApiResponse<GitHubUserProfile?> apiResponse = await gitHubApi.GetUserProfileAsync(accessToken, cancellationToken);
 
-        HttpResponseMessage response = await client.GetAsync("user", cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        if (!apiResponse.IsSuccessStatusCode)
         {
-            logger.LogWarning("Failed to get GitHub user profile. Status code: {StatusCode}", response.StatusCode);
+            logger.LogWarning("Failed to get GitHub user profile. Status code: {StatusCode}", apiResponse.StatusCode);
             return null;
         }
 
-        string content = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        return JsonConvert.DeserializeObject<GitHubUserProfile>(content);
+        return apiResponse.Content;
     }
 
     public async Task<IReadOnlyList<GitHubEvent>?> GetUserEventsAsync(
         string username,
         string accessToken,
+        int page = 1,
+        int perPage = 100,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(username);
 
-        using HttpClient client = CreateGitHubClient(accessToken);
+        ApiResponse<List<GitHubEvent>> apiResponse = await gitHubApi.GetUserEvents(username, accessToken, page, perPage, cancellationToken);
 
-        HttpResponseMessage response = await client.GetAsync($"users/{username}/events?per_page=100", cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        if (!apiResponse.IsSuccessStatusCode)
         {
-            logger.LogWarning("Failed to get GitHub user events. Status code: {StatusCode}", response.StatusCode);
+            logger.LogWarning("Failed to get GitHub user events. Status code: {StatusCode}", apiResponse.StatusCode);
 
             return null;
         }
 
-        string content = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        return JsonConvert.DeserializeObject<List<GitHubEvent>>(content);
-    }
-
-    private HttpClient CreateGitHubClient(string accessToken)
-    {
-        HttpClient client = clientFactory.CreateClient("github");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-        return client;
+        return apiResponse.Content;
     }
 }

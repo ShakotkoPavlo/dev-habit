@@ -12,11 +12,14 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Habit = DevHabit.Contracts.Habits.Habit;
 
 namespace DevHabit.Api.Controllers;
 
+[EnableRateLimiting("default")]
+//[ResponseCache(Duration = 120)]
 [Authorize(Roles = $"{Roles.MemberRole}")]
 [ApiController]
 [Route("habits")]
