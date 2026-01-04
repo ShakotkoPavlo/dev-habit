@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
@@ -70,9 +71,14 @@ public static class DependencyInjection
                         .Template("application/vnd.dev-habit.hateoas.{version}+json")
                         .Build());
             })
-            .AddMvc();
+            .AddMvc()
+            .AddApiExplorer();
 
-        applicationBuilder.Services.AddOpenApi();
+        //applicationBuilder.Services.AddOpenApi();
+
+        applicationBuilder.Services.AddSwaggerGen();
+        applicationBuilder.Services.ConfigureOptions<ConfigureSwaggerGenOptions>();
+        applicationBuilder.Services.ConfigureOptions<ConfigureSwaggerUIOptions>();
 
         applicationBuilder.Services.AddResponseCaching();
 

@@ -134,7 +134,24 @@ public class HabitsController(
         return Ok(shapedHabit);
     }
 
-
+    /// <summary>
+    /// Retrieves a specific habit for the authenticated user using API version 2.0, with optional data shaping and link
+    /// inclusion.
+    /// </summary>
+    /// <remarks>The response includes only the fields specified in <paramref name="habitsRequest"/>. If
+    /// <paramref name="habitsRequest"/>.IncludeLinks is set to <see langword="true"/>, the response will also include
+    /// relevant resource links. The method requires the caller to be authenticated.</remarks>
+    /// <param name="id">The unique identifier of the habit to retrieve.</param>
+    /// <param name="habitsRequest">An object specifying data shaping fields and options for the response, such as which properties to include and
+    /// whether to include related links.</param>
+    /// <param name="dataShapingService">The service used to validate and apply data shaping to the habit data returned in the response.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests. Optional.</param>
+    /// <returns>An <see cref="IActionResult"/> containing the shaped habit data if found and authorized; otherwise, an
+    /// appropriate error response such as 401 Unauthorized, 404 Not Found, or 400 Bad Request.</returns>
+    [ProducesResponseType<HabitWithTagsV2>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [HttpGet("{id}")]
     [ApiVersion(2.0)]
     public async Task<IActionResult> GetHabitV2(
