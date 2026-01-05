@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { useHabits } from '../habits/useHabits';
 import { useEntries } from './useEntries';
 import { Habit } from '../habits/types';
-import { CreateEntry } from './types';
+import { CreateEntryDto } from './types';
 import { Link } from '../../types/api';
 
 interface BatchEntry {
@@ -98,7 +98,7 @@ export const CreateBatchEntriesPage: React.FC = () => {
       return;
     }
 
-    const entries: CreateEntry[] = batchEntries.map(entry => ({
+    const entries: CreateEntryDto[] = batchEntries.map(entry => ({
       habitId: entry.habitId,
       value: parseFloat(entry.value),
       notes: entry.notes || undefined,

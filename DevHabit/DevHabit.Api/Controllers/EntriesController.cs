@@ -1,69 +1,89 @@
-﻿using System.Dynamic;
+using System.Dynamic;
 using System.Net.Mime;
 using Asp.Versioning;
-using DevHabit.Api.Mappers;
-using DevHabit.Application.Services;
-using DevHabit.Contracts;
-using DevHabit.Contracts.Entries;
-using DevHabit.Contracts.Habits;
-using DevHabit.Domain.Entities;
-using DevHabit.Infrastructure.Database;
+using DevHabit.Api.Database;
+using DevHabit.Api.DTOs.Common;
+using DevHabit.Api.DTOs.Entries;
+using DevHabit.Api.Entities;
+using DevHabit.Api.Services;
+using DevHabit.Api.Services.Sorting;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Entry = DevHabit.Contracts.Entries.Entry;
-using Habit = DevHabit.Domain.Entities.Habit;
 
 namespace DevHabit.Api.Controllers;
 
-[Authorize(Roles = Roles.MemberRole)]
+[EnableRateLimiting("default")]
+[Authorize(Roles = Roles.Member)]
 [ApiController]
 [Route("entries")]
 [ApiVersion(1.0)]
 [Produces(
     MediaTypeNames.Application.Json,
-    CustomMediaTypesNames.Application.JsonV1,
-    CustomMediaTypesNames.Application.HateoasJson,
-    CustomMediaTypesNames.Application.HateoasJsonV1)]
+    CustomMediaTypeNames.Application.JsonV1,
+    CustomMediaTypeNames.Application.HateoasJson,
+    CustomMediaTypeNames.Application.HateoasJsonV1)]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class EntriesController(
     ApplicationDbContext dbContext,
     LinkService linkService,
     UserContext userContext) : ControllerBase
 {
+    /// <summary>
+    /// Retrieves a paginated list of entries
+    /// </summary>
+    /// <param name="query">Query parameters for filtering and pagination</param>
+    /// <param name="sortMappingProvider">Provider for sorting mappings</param>
+    /// <param name="dataShapingService">Service for data shaping</param>
+    /// <returns>Paginated list of entries</returns>
     [HttpGet]
+    [ProducesResponseType<PaginationResult<EntryDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetEntries(
         [FromQuery] EntriesQueryParameters query,
+        SortMappingProvider sortMappingProvider,
         DataShapingService dataShapingService)
     {
         string? userId = await userContext.GetUserIdAsync();
-
         if (string.IsNullOrWhiteSpace(userId))
         {
             return Unauthorized();
         }
 
-        if (!dataShapingService.Validate<Entry>(query.Fields))
+        if (!sortMappingProvider.ValidateMappings<EntryDto, Entry>(query.Sort))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"The provided sort parameter isn't valid: '{query.Sort}'");
+        }
+
+        if (!dataShapingService.Validate<EntryDto>(query.Fields))
         {
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 detail: $"The provided data shaping fields aren't valid: '{query.Fields}'");
         }
 
-        IQueryable<Domain.Entities.Entry> entriesQuery = dbContext.Entries
+        SortMapping[] sortMappings = sortMappingProvider.GetMappings<EntryDto, Entry>();
+
+        IQueryable<Entry> entriesQuery = dbContext.Entries
             .Where(e => e.UserId == userId)
             .Where(e => query.HabitId == null || e.HabitId == query.HabitId)
             .Where(e => query.FromDate == null || e.Date >= query.FromDate)
             .Where(e => query.ToDate == null || e.Date <= query.ToDate)
-            .Where(e => query.Source == null || e.Source == Enum.Parse<Domain.Entities.Enums.EntrySource>(query.Source.Value.ToString()))
+            .Where(e => query.Source == null || e.Source == query.Source)
             .Where(e => query.IsArchived == null || e.IsArchived == query.IsArchived);
 
         int totalCount = await entriesQuery.CountAsync();
 
-        List<Entry> entries = await entriesQuery
+        List<EntryDto> entries = await entriesQuery
+            .ApplySort(query.Sort, sortMappings)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(EntryQueries.ProjectTo())
+            .Select(EntryQueries.ProjectToDto())
             .ToListAsync();
 
         var paginationResult = new PaginationResult<ExpandoObject>
@@ -88,7 +108,94 @@ public sealed class EntriesController(
         return Ok(paginationResult);
     }
 
+    /// <summary>
+    /// Retrieves a cursor-based paginated list of entries
+    /// </summary>
+    /// <param name="query">Query parameters for filtering and cursor-based pagination</param>
+    /// <param name="dataShapingService">Service for data shaping</param>
+    /// <returns>Cursor-based paginated list of entries</returns>
+    [HttpGet("cursor")]
+    [ProducesResponseType<CollectionResponse<EntryDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetEntriesCursor(
+        [FromQuery] EntriesCursorQueryParameters query,
+        DataShapingService dataShapingService)
+    {
+        string? userId = await userContext.GetUserIdAsync();
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        if (!dataShapingService.Validate<EntryDto>(query.Fields))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"The provided data shaping fields aren't valid: '{query.Fields}'");
+        }
+
+        IQueryable<Entry> entriesQuery = dbContext.Entries
+            .Where(e => e.UserId == userId)
+            .Where(e => query.HabitId == null || e.HabitId == query.HabitId)
+            .Where(e => query.FromDate == null || e.Date >= query.FromDate)
+            .Where(e => query.ToDate == null || e.Date <= query.ToDate)
+            .Where(e => query.Source == null || e.Source == query.Source)
+            .Where(e => query.IsArchived == null || e.IsArchived == query.IsArchived);
+
+        if (!string.IsNullOrWhiteSpace(query.Cursor))
+        {
+            var cursor = EntryCursorDto.Decode(query.Cursor);
+            if (cursor is not null)
+            {
+                entriesQuery = entriesQuery.Where(e => 
+                    e.Date < cursor.Date || 
+                    e.Date == cursor.Date && string.Compare(e.Id, cursor.Id) <= 0);
+            }
+        }
+
+        List<EntryDto> entries = await entriesQuery
+            .OrderByDescending(e => e.Date)
+            .ThenByDescending(e => e.Id)
+            .Take(query.Limit + 1)
+            .Select(EntryQueries.ProjectToDto())
+            .ToListAsync();
+
+        bool hasNextPage = entries.Count > query.Limit;
+        string? nextCursor = null;
+        if (hasNextPage)
+        {
+            EntryDto lastEntry = entries[^1];
+            nextCursor = EntryCursorDto.Encode(lastEntry.Id, lastEntry.Date);
+            entries.RemoveAt(entries.Count - 1);
+        }
+
+        var paginationResult = new CollectionResponse<ExpandoObject>
+        {
+            Items = dataShapingService.ShapeCollectionData(
+                entries,
+                query.Fields,
+                query.IncludeLinks ? e => CreateLinksForEntry(e.Id, query.Fields, e.IsArchived) : null)
+        };
+
+        if (query.IncludeLinks)
+        {
+            paginationResult.Links = CreateLinksForEntriesCursor(query, nextCursor);
+        }
+
+        return Ok(paginationResult);
+    }
+
+    /// <summary>
+    /// Retrieves a specific entry by ID
+    /// </summary>
+    /// <param name="id">The entry ID</param>
+    /// <param name="query">Query parameters for data shaping</param>
+    /// <param name="dataShapingService">Service for data shaping</param>
+    /// <returns>The requested entry</returns>
     [HttpGet("{id}")]
+    [ProducesResponseType<EntryDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetEntry(
         string id,
         [FromQuery] EntryQueryParameters query,
@@ -100,16 +207,16 @@ public sealed class EntriesController(
             return Unauthorized();
         }
 
-        if (!dataShapingService.Validate<Entry>(query.Fields))
+        if (!dataShapingService.Validate<EntryDto>(query.Fields))
         {
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 detail: $"The provided data shaping fields aren't valid: '{query.Fields}'");
         }
 
-        Entry? entry = await dbContext.Entries
+        EntryDto? entry = await dbContext.Entries
             .Where(e => e.Id == id && e.UserId == userId)
-            .Select(EntryQueries.ProjectTo())
+            .Select(EntryQueries.ProjectToDto())
             .FirstOrDefaultAsync();
 
         if (entry is null)
@@ -117,22 +224,33 @@ public sealed class EntriesController(
             return NotFound();
         }
 
-        ExpandoObject shapedEntry = dataShapingService.ShapedData(entry, query.Fields);
+        ExpandoObject shapedEntryDto = dataShapingService.ShapeData(entry, query.Fields);
 
         if (query.IncludeLinks)
         {
-            ((IDictionary<string, object?>)shapedEntry)[nameof(ILinkResponse.Links)] =
+            ((IDictionary<string, object?>)shapedEntryDto)[nameof(ILinksResponse.Links)] =
                 CreateLinksForEntry(id, query.Fields, entry.IsArchived);
         }
 
-        return Ok(shapedEntry);
+        return Ok(shapedEntryDto);
     }
 
+    /// <summary>
+    /// Creates a new entry
+    /// </summary>
+    /// <param name="createEntryDto">The entry to create</param>
+    /// <param name="acceptHeader">Controls HATEOAS link generation</param>
+    /// <param name="validator">Validator for the create request</param>
+    /// <returns>The created entry</returns>
     [HttpPost]
-    public async Task<ActionResult<Entry>> CreateEntry(
-        CreateEntryRequest createEntryRequest,
-        [FromHeader] AcceptHeader acceptHeader,
-        IValidator<CreateEntryRequest> validator)
+    //[IdempotentRequest]
+    [ProducesResponseType<EntryDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<EntryDto>> CreateEntry(
+        CreateEntryDto createEntryDto,
+        [FromHeader] AcceptHeaderDto acceptHeader,
+        IValidator<CreateEntryDto> validator)
     {
         string? userId = await userContext.GetUserIdAsync();
         if (string.IsNullOrWhiteSpace(userId))
@@ -140,38 +258,47 @@ public sealed class EntriesController(
             return Unauthorized();
         }
 
-        await validator.ValidateAndThrowAsync(createEntryRequest);
+        await validator.ValidateAndThrowAsync(createEntryDto);
 
         Habit? habit = await dbContext.Habits
-            .FirstOrDefaultAsync(h => h.Id == createEntryRequest.HabitId && h.UserId == userId);
+            .FirstOrDefaultAsync(h => h.Id == createEntryDto.HabitId && h.UserId == userId);
 
         if (habit is null)
         {
             return Problem(
-                detail: $"Habit with ID '{createEntryRequest.HabitId}' does not exist.",
-                statusCode: StatusCodes.Status400BadRequest);
+                detail: $"Habit with ID '{createEntryDto.HabitId}' does not exist.",
+                statusCode: StatusCodes.Status404NotFound);
         }
 
-        Domain.Entities.Entry entry = createEntryRequest.ToEntity(userId, habit);
+        Entry entry = createEntryDto.ToEntity(userId, habit);
 
         dbContext.Entries.Add(entry);
         await dbContext.SaveChangesAsync();
 
-        Entry entryContract = entry.To();
+        EntryDto entryDto = entry.ToDto();
 
         if (acceptHeader.IncludeLinks)
         {
-            entryContract.Links = CreateLinksForEntry(entryContract.Id, null, entryContract.IsArchived);
+            entryDto.Links = CreateLinksForEntry(entry.Id, null, entry.IsArchived);
         }
 
-        return CreatedAtAction(nameof(GetEntry), new { id = entryContract.Id }, entryContract);
+        return CreatedAtAction(nameof(GetEntry), new { id = entryDto.Id }, entryDto);
     }
 
+    /// <summary>
+    /// Creates a batch of entries
+    /// </summary>
+    /// <param name="createEntryBatchDto">The batch of entries to create</param>
+    /// <param name="acceptHeader">Controls HATEOAS link generation</param>
+    /// <param name="validator">Validator for the create batch request</param>
+    /// <returns>The created entries</returns>
     [HttpPost("batch")]
-    public async Task<ActionResult<List<Entry>>> CreateEntryBatch(
-        CreateEntryBatchRequest createEntryBatchRequest,
-        [FromHeader] AcceptHeader acceptHeader,
-        IValidator<CreateEntryBatchRequest> validator)
+    [ProducesResponseType<List<EntryDto>>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<List<EntryDto>>> CreateEntryBatch(
+        CreateEntryBatchDto createEntryBatchDto,
+        [FromHeader] AcceptHeaderDto acceptHeader,
+        IValidator<CreateEntryBatchDto> validator)
     {
         string? userId = await userContext.GetUserIdAsync();
         if (string.IsNullOrWhiteSpace(userId))
@@ -179,9 +306,9 @@ public sealed class EntriesController(
             return Unauthorized();
         }
 
-        await validator.ValidateAndThrowAsync(createEntryBatchRequest);
+        await validator.ValidateAndThrowAsync(createEntryBatchDto);
 
-        var habitIds = createEntryBatchRequest.Entries
+        var habitIds = createEntryBatchDto.Entries
             .Select(e => e.HabitId)
             .ToHashSet();
 
@@ -196,31 +323,40 @@ public sealed class EntriesController(
                 statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var entries = createEntryBatchRequest.Entries
+        var entries = createEntryBatchDto.Entries
             .Select(dto => dto.ToEntity(userId, existingHabits.First(h => h.Id == dto.HabitId)))
             .ToList();
 
         dbContext.Entries.AddRange(entries);
         await dbContext.SaveChangesAsync();
 
-        var entrys = entries.Select(e => e.To()).ToList();
+        var entryDtos = entries.Select(e => e.ToDto()).ToList();
 
         if (acceptHeader.IncludeLinks)
         {
-            foreach (Entry entry in entrys)
+            foreach (EntryDto entryDto in entryDtos)
             {
-                entry.Links = CreateLinksForEntry(entry.Id, null, entry.IsArchived);
+                entryDto.Links = CreateLinksForEntry(entryDto.Id, null, entryDto.IsArchived);
             }
         }
 
-        return CreatedAtAction(nameof(GetEntries), entrys);
+        return CreatedAtAction(nameof(GetEntries), entryDtos);
     }
 
+    /// <summary>
+    /// Updates an entry
+    /// </summary>
+    /// <param name="id">The entry ID</param>
+    /// <param name="updateEntryDto">The update details</param>
+    /// <param name="validator">Validator for the update request</param>
+    /// <returns>No content on success</returns>
     [HttpPut("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> UpdateEntry(
         string id,
-        UpdateEntry updateEntry,
-        IValidator<UpdateEntry> validator)
+        UpdateEntryDto updateEntryDto,
+        IValidator<UpdateEntryDto> validator)
     {
         string? userId = await userContext.GetUserIdAsync();
         if (string.IsNullOrWhiteSpace(userId))
@@ -228,9 +364,9 @@ public sealed class EntriesController(
             return Unauthorized();
         }
 
-        await validator.ValidateAndThrowAsync(updateEntry);
+        await validator.ValidateAndThrowAsync(updateEntryDto);
 
-        Domain.Entities.Entry? entry = await dbContext.Entries
+        Entry? entry = await dbContext.Entries
             .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
 
         if (entry is null)
@@ -238,13 +374,20 @@ public sealed class EntriesController(
             return NotFound();
         }
 
-        entry.UpdateFrom(updateEntry);
+        entry.UpdateFromDto(updateEntryDto);
         await dbContext.SaveChangesAsync();
 
         return NoContent();
     }
 
+    /// <summary>
+    /// Archives an entry
+    /// </summary>
+    /// <param name="id">The entry ID</param>
+    /// <returns>No content on success</returns>
     [HttpPut("{id}/archive")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> ArchiveEntry(string id)
     {
         string? userId = await userContext.GetUserIdAsync();
@@ -253,7 +396,7 @@ public sealed class EntriesController(
             return Unauthorized();
         }
 
-        Domain.Entities.Entry? entry = await dbContext.Entries
+        Entry? entry = await dbContext.Entries
             .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
 
         if (entry is null)
@@ -268,7 +411,14 @@ public sealed class EntriesController(
         return NoContent();
     }
 
+    /// <summary>
+    /// Unarchives an entry
+    /// </summary>
+    /// <param name="id">The entry ID</param>
+    /// <returns>No content on success</returns>
     [HttpPut("{id}/un-archive")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> UnArchiveEntry(string id)
     {
         string? userId = await userContext.GetUserIdAsync();
@@ -277,7 +427,7 @@ public sealed class EntriesController(
             return Unauthorized();
         }
 
-        Domain.Entities.Entry? entry = await dbContext.Entries
+        Entry? entry = await dbContext.Entries
             .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
 
         if (entry is null)
@@ -292,7 +442,14 @@ public sealed class EntriesController(
         return NoContent();
     }
 
+    /// <summary>
+    /// Deletes an entry
+    /// </summary>
+    /// <param name="id">The entry ID</param>
+    /// <returns>No content on success</returns>
     [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> DeleteEntry(string id)
     {
         string? userId = await userContext.GetUserIdAsync();
@@ -301,7 +458,7 @@ public sealed class EntriesController(
             return Unauthorized();
         }
 
-        Domain.Entities.Entry? entry = await dbContext.Entries
+        Entry? entry = await dbContext.Entries
             .FirstOrDefaultAsync(e => e.Id == id && e.UserId == userId);
 
         if (entry is null)
@@ -315,8 +472,13 @@ public sealed class EntriesController(
         return NoContent();
     }
 
+    /// <summary>
+    /// Retrieves entry statistics for the current user
+    /// </summary>
+    /// <returns>Entry statistics including streaks and daily counts</returns>
     [HttpGet("stats")]
-    public async Task<ActionResult<EntryStats>> GetStats()
+    [ProducesResponseType<EntryStatsDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<EntryStatsDto>> GetStats()
     {
         string? userId = await userContext.GetUserIdAsync();
         if (string.IsNullOrWhiteSpace(userId))
@@ -332,7 +494,7 @@ public sealed class EntriesController(
 
         if (!entries.Any())
         {
-            return Ok(new EntryStats
+            return Ok(new EntryStatsDto
             {
                 DailyStats = [],
                 TotalEntries = 0,
@@ -344,7 +506,7 @@ public sealed class EntriesController(
         // Calculate daily stats
         var dailyStats = entries
             .GroupBy(e => e.Date)
-            .Select(g => new DailyStats
+            .Select(g => new DailyStatsDto
             {
                 Date = g.Key,
                 Count = g.Count()
@@ -401,7 +563,7 @@ public sealed class EntriesController(
             }
         }
 
-        return Ok(new EntryStats
+        return Ok(new EntryStatsDto
         {
             DailyStats = dailyStats,
             TotalEntries = totalEntries,
@@ -410,14 +572,14 @@ public sealed class EntriesController(
         });
     }
 
-    private List<Link> CreateLinksForEntries(
+    private List<LinkDto> CreateLinksForEntries(
         EntriesQueryParameters parameters,
         bool hasNextPage,
         bool hasPreviousPage)
     {
-        List<Link> links =
+        List<LinkDto> links =
         [
-            linkService.GenerateLink(nameof(GetEntries), "self", HttpMethods.Get, new
+            linkService.Create(nameof(GetEntries), "self", HttpMethods.Get, new
             {
                 page = parameters.Page,
                 pageSize = parameters.PageSize,
@@ -429,14 +591,14 @@ public sealed class EntriesController(
                 source = parameters.Source,
                 isArchived = parameters.IsArchived
             }),
-            linkService.GenerateLink(nameof(GetStats), "stats", HttpMethods.Get),
-            linkService.GenerateLink(nameof(CreateEntry), "create", HttpMethods.Post),
-            linkService.GenerateLink(nameof(CreateEntryBatch), "create-batch", HttpMethods.Post)
+            linkService.Create(nameof(GetStats), "stats", HttpMethods.Get),
+            linkService.Create(nameof(CreateEntry), "create", HttpMethods.Post),
+            linkService.Create(nameof(CreateEntryBatch), "create-batch", HttpMethods.Post)
         ];
 
         if (hasNextPage)
         {
-            links.Add(linkService.GenerateLink(nameof(GetEntries), "next-page", HttpMethods.Get, new
+            links.Add(linkService.Create(nameof(GetEntries), "next-page", HttpMethods.Get, new
             {
                 page = parameters.Page + 1,
                 pageSize = parameters.PageSize,
@@ -452,7 +614,7 @@ public sealed class EntriesController(
 
         if (hasPreviousPage)
         {
-            links.Add(linkService.GenerateLink(nameof(GetEntries), "previous-page", HttpMethods.Get, new
+            links.Add(linkService.Create(nameof(GetEntries), "previous-page", HttpMethods.Get, new
             {
                 page = parameters.Page - 1,
                 pageSize = parameters.PageSize,
@@ -469,18 +631,58 @@ public sealed class EntriesController(
         return links;
     }
 
-    private List<Link> CreateLinksForEntry(string id, string? fields, bool isArchived)
+    private List<LinkDto> CreateLinksForEntriesCursor(
+        EntriesCursorQueryParameters parameters,
+        string? nextCursor)
     {
-        List<Link> links =
+        List<LinkDto> links =
         [
-            linkService.GenerateLink(nameof(GetEntry), "self", HttpMethods.Get, new { id, fields }),
-            linkService.GenerateLink(nameof(UpdateEntry), "update", HttpMethods.Put, new { id }),
+            linkService.Create(nameof(GetEntriesCursor), "self", HttpMethods.Get, new
+            {
+                limit = parameters.Limit,
+                cursor = parameters.Cursor,
+                fields = parameters.Fields,
+                habitId = parameters.HabitId,
+                fromDate = parameters.FromDate,
+                toDate = parameters.ToDate,
+                source = parameters.Source,
+                isArchived = parameters.IsArchived
+            }),
+            linkService.Create(nameof(GetStats), "stats", HttpMethods.Get),
+            linkService.Create(nameof(CreateEntry), "create", HttpMethods.Post),
+            linkService.Create(nameof(CreateEntryBatch), "create-batch", HttpMethods.Post)
+        ];
+
+        if (!string.IsNullOrWhiteSpace(nextCursor))
+        {
+            links.Add(linkService.Create(nameof(GetEntriesCursor), "next-page", HttpMethods.Get, new
+            {
+                limit = parameters.Limit,
+                cursor = nextCursor,
+                fields = parameters.Fields,
+                habitId = parameters.HabitId,
+                fromDate = parameters.FromDate,
+                toDate = parameters.ToDate,
+                source = parameters.Source,
+                isArchived = parameters.IsArchived
+            }));
+        }
+
+        return links;
+    }
+
+    private List<LinkDto> CreateLinksForEntry(string id, string? fields, bool isArchived)
+    {
+        List<LinkDto> links =
+        [
+            linkService.Create(nameof(GetEntry), "self", HttpMethods.Get, new { id, fields }),
+            linkService.Create(nameof(UpdateEntry), "update", HttpMethods.Put, new { id }),
             isArchived ?
-                linkService.GenerateLink(nameof(UnArchiveEntry), "un-archive", HttpMethods.Put, new { id }) :
-                linkService.GenerateLink(nameof(ArchiveEntry), "archive", HttpMethods.Put, new { id }),
-            linkService.GenerateLink(nameof(DeleteEntry), "delete", HttpMethods.Delete, new { id })
+                linkService.Create(nameof(UnArchiveEntry), "un-archive", HttpMethods.Put, new { id }) :
+                linkService.Create(nameof(ArchiveEntry), "archive", HttpMethods.Put, new { id }),
+            linkService.Create(nameof(DeleteEntry), "delete", HttpMethods.Delete, new { id })
         ];
 
         return links;
     }
-}
+} 

@@ -1,78 +1,112 @@
-﻿using DevHabit.Contracts.Tags.Requests;
-using DevHabit.Domain.Entities;
-using DevHabit.Infrastructure.Database;
+﻿using System.Net.Mime;
+using DevHabit.Api.Database;
+using DevHabit.Api.DTOs.HabitTags;
+using DevHabit.Api.Entities;
+using DevHabit.Api.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace DevHabit.Api.Controllers;
 
-[Authorize(Roles = $"{Roles.MemberRole}")]
+[Authorize(Roles = Roles.Member)]
 [ApiController]
 [Route("habits/{habitId}/tags")]
-public class HabitTagsController(ApplicationDbContext dbContext): ControllerBase
+[Produces(
+    MediaTypeNames.Application.Json,
+    CustomMediaTypeNames.Application.JsonV1,
+    CustomMediaTypeNames.Application.HateoasJson,
+    CustomMediaTypeNames.Application.HateoasJsonV1)]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
+public sealed class HabitTagsController(ApplicationDbContext dbContext) : ControllerBase
 {
+    public static readonly string Name = nameof(HabitTagsController).Replace("Controller", string.Empty);
+
+    /// <summary>
+    /// Updates the tags associated with a habit
+    /// </summary>
+    /// <param name="habitId">The ID of the habit</param>
+    /// <param name="upsertHabitTagsDto">The list of tag IDs to associate with the habit</param>
+    /// <param name="validator">Validator for the upsert request</param>
+    /// <returns>No content on success</returns>
     [HttpPut]
-    public async Task<ActionResult> AddTagToHabit(string habitId, UpsertTagsRequest upsertTagsRequest, CancellationToken cancellationToken = default)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> UpsertHabitTags(
+        string habitId,
+        UpsertHabitTagsDto upsertHabitTagsDto,
+        IValidator<UpsertHabitTagsDto> validator)
     {
-        Habit? habit = await dbContext
-            .Habits
+        await validator.ValidateAndThrowAsync(upsertHabitTagsDto);
+
+        Habit? habit = await dbContext.Habits
             .Include(h => h.HabitTags)
-            .FirstOrDefaultAsync(h => h.Id == habitId, cancellationToken);
+            .FirstOrDefaultAsync(h => h.Id == habitId);
 
         if (habit is null)
         {
             return NotFound();
         }
 
-        var currentTags = habit.HabitTags.Select(x => x.TagId).ToHashSet();
-
-        if (currentTags.SetEquals(upsertTagsRequest.Tags))
+        var currentTagIds = habit.HabitTags.Select(ht => ht.TagId).ToHashSet();
+        if (currentTagIds.SetEquals(upsertHabitTagsDto.TagIds))
         {
             return NoContent();
         }
 
-        List<string> existingTagIds = await dbContext.Tags
-            .Where(x => upsertTagsRequest.Tags.Contains(x.Id))
-            .Select(x => x.Id)
-            .ToListAsync(cancellationToken);
+        List<string> existingTagIds = await dbContext
+            .Tags
+            .Where(t => upsertHabitTagsDto.TagIds.Contains(t.Id))
+            .Select(t => t.Id)
+            .ToListAsync();
 
-        if (existingTagIds.Count != upsertTagsRequest.Tags.Count())
+        if (existingTagIds.Count != upsertHabitTagsDto.TagIds.Count)
         {
-            return BadRequest("One or more Ids are invalid!");
+            return Problem(
+                detail: "One or more tag IDs is invalid",
+                statusCode: StatusCodes.Status400BadRequest);
         }
 
-        habit.HabitTags.RemoveAll(x => !upsertTagsRequest.Tags.Contains(x.TagId));
+        habit.HabitTags.RemoveAll(ht => !upsertHabitTagsDto.TagIds.Contains(ht.TagId));
 
-        string[] tagsToAdd = upsertTagsRequest.Tags.Except(currentTags).ToArray();
-
-        habit.HabitTags.AddRange(tagsToAdd.Select(id => new HabitTag
+        string[] tagIdsToAdd = upsertHabitTagsDto.TagIds.Except(currentTagIds).ToArray();
+        habit.HabitTags.AddRange(tagIdsToAdd.Select(tagId => new HabitTag
         {
-            HabitId = habit.Id,
-            TagId = id,
-            CreatedAtUtc = DateTime.UtcNow,
+            HabitId = habitId,
+            TagId = tagId,
+            CreatedAtUtc = DateTime.UtcNow
         }));
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await dbContext.SaveChangesAsync();
 
         return NoContent();
     }
 
-    [HttpDelete("{id}")]
-    public async Task<ActionResult> RemoveTagFromHabit(string habitId, string id, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Deletes a tag association from a habit
+    /// </summary>
+    /// <param name="habitId">The ID of the habit</param>
+    /// <param name="tagId">The ID of the tag to remove</param>
+    /// <returns>No content on success</returns>
+    [HttpDelete("{tagId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> DeleteHabitTag(string habitId, string tagId)
     {
-        HabitTag? habit = await dbContext
-            .HabitTags
-            .SingleOrDefaultAsync(h => h.HabitId == habitId && h.TagId == id, cancellationToken);
+        HabitTag? habitTag = await dbContext.HabitTags
+            .SingleOrDefaultAsync(ht => ht.HabitId == habitId && ht.TagId == tagId);
 
-        if (habit is null)
+        if (habitTag is null)
         {
             return NotFound();
         }
 
-        dbContext.HabitTags.Remove(habit);
+        dbContext.HabitTags.Remove(habitTag);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await dbContext.SaveChangesAsync();
 
         return NoContent();
     }

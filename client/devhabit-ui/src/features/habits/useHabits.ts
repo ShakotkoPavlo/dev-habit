@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { API_BASE_URL } from '../../api/config';
-import { CreateHabit, Habit, UpdateHabit } from './types';
+import { CreateHabitDto, Habit, UpdateHabitDto } from './types';
 import { fetchWithAuth } from '../../utils/fetchUtils';
 import type { Link } from '../../types/api';
 
@@ -76,7 +76,7 @@ export function useHabits() {
     }
   };
 
-  const updateHabit = async (link: Link, data: UpdateHabit): Promise<boolean> => {
+  const updateHabit = async (link: Link, data: UpdateHabitDto): Promise<boolean> => {
     if (!accessToken) return false;
     if (link.rel !== 'update' || link.method !== 'PUT') {
       throw new Error('Invalid operation: Link does not support updating habit');
@@ -102,7 +102,7 @@ export function useHabits() {
     }
   };
 
-  const createHabit = async (data: CreateHabit): Promise<Habit | null> => {
+  const createHabit = async (data: CreateHabitDto): Promise<Habit | null> => {
     if (!accessToken) return null;
     setIsLoading(true);
     setError(null);

@@ -16,7 +16,7 @@ interface TagsResponse {
   links: Link[];
 }
 
-interface CreateTag {
+interface CreateTagDto {
   name: string;
   description?: string | null;
 }
@@ -46,7 +46,7 @@ export function useTags() {
     }
   };
 
-  const createTag = async (data: CreateTag): Promise<Tag | null> => {
+  const createTag = async (data: CreateTagDto): Promise<Tag | null> => {
     if (!accessToken) return null;
     setIsLoading(true);
     setError(null);
@@ -69,7 +69,7 @@ export function useTags() {
     }
   };
 
-  const updateTag = async (link: Link, data: CreateTag): Promise<boolean> => {
+  const updateTag = async (link: Link, data: CreateTagDto): Promise<boolean> => {
     if (!accessToken) return false;
     if (link.rel !== 'update' || link.method !== 'PUT') {
       throw new Error('Invalid operation: Link does not support updating tag');

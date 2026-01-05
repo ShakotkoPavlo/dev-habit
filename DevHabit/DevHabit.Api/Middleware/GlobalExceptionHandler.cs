@@ -17,9 +17,8 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
             ProblemDetails = new ProblemDetails
             {
                 Title = "Internal Server Error",
-                Detail = "An unexpected error occurred. Please try again later.",
+                Detail = "An error occurred while processing your request. Please try again"
             }
-
         });
     }
 }

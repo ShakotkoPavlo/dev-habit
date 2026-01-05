@@ -4,10 +4,10 @@ namespace DevHabit.Api.Extensions;
 
 public static class ClaimsPrincipalExtensions
 {
-    public static string? GetIdentityId(this ClaimsPrincipal? claimsPrincipal)
+    public static string? GetIdentityId(this ClaimsPrincipal? principal)
     {
-        string? identity = claimsPrincipal?.FindFirstValue(ClaimTypes.NameIdentifier);
+        string? identityId = principal?.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        return identity;
+        return identityId;
     }
 }

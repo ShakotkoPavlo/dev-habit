@@ -24,43 +24,43 @@ export enum AutomationSource {
   GitHub = 1,
 }
 
-export interface Frequency {
+export interface FrequencyDto {
   type: FrequencyType;
   timesPerPeriod: number;
 }
 
-export interface Target {
+export interface TargetDto {
   value: number;
   unit: string;
 }
 
-export interface Milestone {
+export interface MilestoneDto {
   target: number;
 }
 
-export interface CreateHabit {
+export interface CreateHabitDto {
   name: string;
   description?: string;
   type: HabitType;
-  frequency: Frequency;
-  target: Target;
+  frequency: FrequencyDto;
+  target: TargetDto;
   endDate?: string; // DateOnly will be sent as ISO string
-  milestone?: Milestone;
+  milestone?: MilestoneDto;
   automationSource?: AutomationSource;
 }
 
-export interface UpdateHabit {
+export interface UpdateHabitDto {
   name: string;
   description?: string;
   type: HabitType;
-  frequency: Frequency;
-  target: Target;
+  frequency: FrequencyDto;
+  target: TargetDto;
   endDate?: string; // DateOnly will be sent as ISO string
-  milestone?: Milestone;
+  milestone?: MilestoneDto;
   automationSource?: AutomationSource;
 }
 
-export interface Habit extends CreateHabit, HateoasResponse {
+export interface Habit extends CreateHabitDto, HateoasResponse {
   id: string;
   status: HabitStatus;
   isArchived: boolean;

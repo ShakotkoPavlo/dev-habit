@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useEntries } from './useEntries';
-import { Entry, UpdateEntry } from './types';
+import { Entry, UpdateEntryDto } from './types';
 
 export const EditEntryPage: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ export const EditEntryPage: React.FC = () => {
     const updateLink = entry.links?.find(link => link.rel === 'update');
     if (!updateLink) return;
 
-    const entryData: UpdateEntry = {
+    const entryData: UpdateEntryDto = {
       value: parseFloat(value),
       notes: notes || undefined,
       date: format(date, 'yyyy-MM-dd'),

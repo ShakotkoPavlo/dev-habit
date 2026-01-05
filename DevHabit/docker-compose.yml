@@ -2,30 +2,32 @@ services:
   devhabit.api:
     image: ${DOCKER_REGISTRY-}devhabitapi
     build:
-      context: DevHabit.Api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: DevHabit.Api/Dockerfile
     ports:
       - 5000:8080
       - 5001:8081
     environment:
+      # Seq
       # - OTEL_EXPORTER_OTLP_ENDPOINT=http://devhabit.seq:5341/ingest/otlp
       # - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      # Aspire Dashboard
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://devhabit.aspire-dashboard:18889
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 
   devhabit.postgres:
-    image: postgres:17.2
+    image: postgres:17.2 # or latest
     environment:
+      POSTGRES_DB: devhabit
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: devhabit
     volumes:
       - ./.containers/postgres_data:/var/lib/postgresql/data
     ports:
       - 5432:5432
 
   devhabit.seq:
-    image: datalust/seq:2024.3
+    image: datalust/seq:2024.3 # or latest
     environment:
       ACCEPT_EULA: "Y"
     volumes:

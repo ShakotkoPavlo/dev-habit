@@ -5,7 +5,7 @@ import {
   HabitType,
   FrequencyType,
   type Habit,
-  type CreateHabit,
+  type CreateHabitDto,
   AutomationSource,
 } from './types';
 import type { Link as HypermediaLink } from '../../types/api';
@@ -31,7 +31,7 @@ export const EditHabitPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [habit, setHabit] = useState<Habit | null>(null);
 
-  const [formData, setFormData] = useState<CreateHabit>({
+  const [formData, setFormData] = useState<CreateHabitDto>({
     name: '',
     description: '',
     type: HabitType.Binary,

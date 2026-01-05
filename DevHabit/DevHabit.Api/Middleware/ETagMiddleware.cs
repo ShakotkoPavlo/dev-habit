@@ -1,9 +1,10 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
+using DevHabit.Api.Services;
 
 namespace DevHabit.Api.Middleware;
 
-public sealed partial class ETagMiddleware(RequestDelegate next)
+public sealed class ETagMiddleware(RequestDelegate next)
 {
     private static readonly string[] ConcurrencyCheckMethods =
     [
@@ -26,17 +27,15 @@ public sealed partial class ETagMiddleware(RequestDelegate next)
 
         if (ConcurrencyCheckMethods.Contains(context.Request.Method) && !string.IsNullOrEmpty(ifMatch))
         {
-            string currentTag = etagStore.GetETag(resourceUri);
+            string currentETag = etagStore.GetETag(resourceUri);
 
-            if (!string.IsNullOrWhiteSpace(currentTag) && ifMatch != currentTag)
+            if (!string.IsNullOrWhiteSpace(currentETag) && ifMatch != currentETag)
             {
                 context.Response.StatusCode = StatusCodes.Status412PreconditionFailed;
                 context.Response.ContentLength = 0;
-
                 return;
             }
         }
-
 
         Stream originalStream = context.Response.Body;
         using var memoryStream = new MemoryStream();

@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { useHabits } from '../habits/useHabits';
 import { useEntries } from './useEntries';
 import { Habit } from '../habits/types';
-import { CreateEntry } from './types';
+import { CreateEntryDto } from './types';
 
 export const CreateEntryPage: React.FC = () => {
   const navigate = useNavigate();
@@ -33,7 +33,7 @@ export const CreateEntryPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const entryData: CreateEntry = {
+    const entryData: CreateEntryDto = {
       habitId: selectedHabitId,
       value: parseFloat(value),
       notes: notes || undefined,
